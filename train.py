@@ -26,7 +26,6 @@ import numpy as np
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
 
-
 experiment = object
 
 np.random.seed(0)
@@ -34,11 +33,12 @@ torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
 hyper_params = {
+    'ex_number': '3090_ResNet50',
     "input_size": (3, 512, 512),
     "learning_rate": 3e-4,
     "epochs": 400,
     "batch_size": 18,
-    "src_path": 'E:/BJM/Super_Resolution'
+    "src_path": '/root/autodl-tmp/BJM/Super_Resolution'
 }
 
 src_path = hyper_params['src_path']
@@ -128,6 +128,13 @@ if train_comet:
     experiment.log_code('train.py')
     experiment.log_code('data_loader.py')
 
+hyper_params['output_dir'] = output_dir
+hyper_params['ex_date'] = a[:10]
+
+if train_comet:
+    hyper_params['ex_key'] = experiment.get_key()
+    experiment.log_parameters(hyper_params)
+    experiment.set_name('{}-{}'.format(hyper_params['ex_date'], hyper_params['ex_number']))
 # -------------------------
 #           Setting
 # -------------------------
@@ -150,7 +157,6 @@ exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer_ft, int(Epochs / 10)
 
 def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epochs, scheduler, Device, comet=False):
     training_model = training_model.to(device)
-
 
     def train_batch(train_model):
         training_loss = 0.0
@@ -181,7 +187,6 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
 
         training_loss /= len(train_load)
         training_evaluation /= len(train_load)
-        train_eval_list = np.append([training_loss, training_evaluation])
         scheduler.step()
 
         return training_loss, training_evaluation
