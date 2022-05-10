@@ -70,28 +70,37 @@ class Super_Resolution_Dataset(Dataset):
 
 
 class Image_Reconstruction_Dataset(Dataset):
-    def __init__(self, raw_image_path, defective_image_path, defective_mask_path, data_txt, transformer=None):
+    def __init__(self, defective_image_path, defective_mask_path, raw_image_path, data_txt, transformer=transform):
         self.raw_image_path = raw_image_path
         self.defective_image_path = defective_image_path
         self.defective_mask_path = defective_mask_path
         self.data_txt = data_txt
         self.transform = transformer
         with open(self.data_txt, 'r') as f:
-            self.file_list = f.readlines()
+            self.file_list = f.read().splitlines()
 
     def __len__(self):
         return len(self.file_list)
 
     def __getitem__(self, item):
-        self.raw_image = cv2.imread(os.path.join(self.raw_image_path, self.file_list[item]), cv2.COLOR_BGR2RGB)
-        self.defective_image = cv2.imread(os.path.join(self.defective_image_path, self.file_list[item]), cv2.COLOR_BGR2RGB)
-        self.defective_mask = cv2.imread(os.path.join(self.defective_mask_path, self.file_list[item]), cv2.COLOR_BGR2RGB)
-        
+        self.raw_image = cv2.imread(os.path.join(self.raw_image_path, self.file_list[item]))
+        self.raw_image = cv2.cvtColor(self.raw_image, cv2.COLOR_BGR2RGB)
+        self.defective_image = cv2.imread(os.path.join(self.defective_image_path, self.file_list[item]))
+        self.defective_image = cv2.cvtColor(self.defective_image, cv2.COLOR_BGR2RGB)
+        self.defective_mask = cv2.imread(os.path.join(self.defective_mask_path, self.file_list[item]))
+        self.defective_mask = cv2.cvtColor(self.defective_mask, cv2.COLOR_BGR2RGB)
+
         if self.transform is None:
             pass
 
         else:
-            self.raw_image, self.defective_image, self.defective_mask = self.transform(self.raw_image), \
-                                                                   self.transform(self.defective_image), self.transform(self.defective_mask)
+            masks = [self.defective_image, self.defective_mask]
+            self.transformed = self.transform(image=self.raw_image, masks=masks)
+            self.raw_image = self.transformed['image']
+            self.defective_image, self.defective_mask = self.transformed['masks']
+
+            self.raw_image, self.defective_image, self.defective_mask = \
+                transforms.ToTensor()(self.raw_image), transforms.ToTensor()(self.defective_image), \
+                transforms.ToTensor()(self.defective_mask)
 
         return self.defective_image, self.defective_mask, self.raw_image
