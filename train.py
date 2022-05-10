@@ -26,8 +26,6 @@ import numpy as np
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
 
-torch.backends.cudnn.enabled = True
-torch.backends.cudnn.benchmark = True
 
 experiment = object
 
@@ -38,8 +36,8 @@ torch.cuda.manual_seed_all(0)
 hyper_params = {
     "input_size": (3, 512, 512),
     "learning_rate": 3e-4,
-    "epochs": 10,
-    "batch_size": 4,
+    "epochs": 400,
+    "batch_size": 18,
     "src_path": 'E:/BJM/Super_Resolution'
 }
 
@@ -137,7 +135,7 @@ if train_comet:
 Epochs = hyper_params['epochs']
 lr = hyper_params['learning_rate']
 
-eval_function = torchmetrics.functional.image.psnr
+eval_function = torchmetrics.functional.image.psnr.peak_signal_noise_ratio
 loss_function = nn.MSELoss()
 
 # Observe that all parameters are being optimized
@@ -230,11 +228,11 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
                   .format(epoch, train_loss, val_loss, train_evaluation, val_evaluation))
             train_eval_list = np.append(train_eval_list, [train_loss, train_evaluation])
             val_eval_list = np.append(val_eval_list, [val_loss, val_evaluation])
-
-            torch.save(save_model.state_dict(),
-                       os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
-        np.save(os.path.join(output_dir, 'train.npz'), train_eval_list)
-        np.save(os.path.join(output_dir, 'train.npz'), val_eval_list)
+            if val_evaluation > 30:
+                torch.save(save_model.state_dict(),
+                           os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
+        np.save(os.path.join(output_dir, 'train.npy'), train_eval_list)
+        np.save(os.path.join(output_dir, 'train.npy'), val_eval_list)
 
         print(np.max(val_eval_list))
 

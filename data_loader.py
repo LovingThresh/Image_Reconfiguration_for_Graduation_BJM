@@ -53,20 +53,20 @@ class Super_Resolution_Dataset(Dataset):
         return len(self.file_list)
 
     def __getitem__(self, item):
-        self.raw_image = cv2.imread(os.path.join(self.raw_image_path, self.file_list[item]), cv2.COLOR_BGR2RGB)
-        self.low_resolution_image = cv2.imread(os.path.join(self.low_resolution_image_path, self.file_list[item]), 
-                                               cv2.COLOR_BGR2RGB)
+        self.raw_image = cv2.imread(os.path.join(self.raw_image_path, self.file_list[item]))
+        self.raw_image = cv2.cvtColor(self.raw_image, cv2.COLOR_BGR2RGB)
+        self.low_resolution_image = cv2.imread(os.path.join(self.low_resolution_image_path, self.file_list[item]))
+        self.low_resolution_image = cv2.cvtColor(self.low_resolution_image, cv2.COLOR_BGR2RGB)
         self.low_resolution_image = cv2.resize(self.low_resolution_image, (512, 512))
         if self.transform is None:
             pass
-
         else:
             self.transformed = self.transform(image=self.raw_image, mask=self.low_resolution_image)
             self.raw_image, self.low_resolution_image = self.transformed['image'], self.transformed['mask']
             self.raw_image, self.low_resolution_image = \
                 transforms.ToTensor()(self.raw_image), transforms.ToTensor()(self.low_resolution_image)
 
-        return self.raw_image, self.low_resolution_image
+        return self.low_resolution_image, self.raw_image
 
 
 class Image_Reconstruction_Dataset(Dataset):
@@ -94,4 +94,4 @@ class Image_Reconstruction_Dataset(Dataset):
             self.raw_image, self.defective_image, self.defective_mask = self.transform(self.raw_image), \
                                                                    self.transform(self.defective_image), self.transform(self.defective_mask)
 
-        return self.raw_image, self.defective_image, self.defective_mask
+        return self.defective_image, self.defective_mask, self.raw_image

@@ -239,15 +239,6 @@ class ResNet(nn.Module):
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.conv_T_1 = nn.ConvTranspose2d(2048, 1024, (2, 2), (2, 2))
-        self.bn2 = nn.BatchNorm2d(1024)
-        self.conv_T_2 = nn.ConvTranspose2d(1024, 512, (2, 2), (2, 2))
-        self.bn3 = nn.BatchNorm2d(512)
-        self.conv_T_3 = nn.ConvTranspose2d(512, 256, (2, 2), (2, 2))
-        self.bn4 = nn.BatchNorm2d(256)
-        self.conv_T_4 = nn.ConvTranspose2d(256, 64, (2, 2), (2, 2))
-        self.bn5 = nn.BatchNorm2d(64)
-        self.conv_T_5 = nn.ConvTranspose2d(64, 3, (2, 2), (2, 2))
 
         self.res_layers = []
         for i, num_blocks in enumerate(stage_blocks):
@@ -270,6 +261,22 @@ class ResNet(nn.Module):
 
         self.feat_dim = block.expansion * 64 * 2 ** (len(stage_blocks) - 1)
 
+        self.Conv_T_layers = []
+        self.Conv_N_layers = []
+        self.conv_T_blocks = [2048, 1024, 512, 256, 64]
+        for i, conv_T in enumerate(self.conv_T_blocks[:-1]):
+            in_channel = conv_T
+            out_channel = self.conv_T_blocks[i + 1]
+            layer_T_name = f'layer_T_{i + 1}'
+            layer_Norm_name = f'layer_N_{i + 1}'
+            conv_T_layer = nn.ConvTranspose2d(in_channel, out_channel, (2, 2), (2, 2))
+            Norm_layer = nn.BatchNorm2d(out_channel)
+            self.add_module(layer_T_name, conv_T_layer)
+            self.add_module(layer_Norm_name, Norm_layer)
+            self.Conv_T_layers.append(layer_T_name)
+            self.Conv_N_layers.append(layer_Norm_name)
+        self.conv_T_final = nn.ConvTranspose2d(64, 3, (2, 2), (2, 2))
+
     def init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -288,18 +295,12 @@ class ResNet(nn.Module):
             x = res_layer(x)
             if i in self.out_indices:
                 outs.append(x)
-        x = self.conv_T_1(x)
-        x = self.bn2(x)
-        x = self.relu(x)
-        x = self.conv_T_2(x)
-        x = self.bn3(x)
-        x = self.relu(x)
-        x = self.conv_T_3(x)
-        x = self.bn4(x)
-        x = self.relu(x)
-        x = self.conv_T_4(x)
-        x = self.bn5(x)
-        x = self.conv_T_5(x)
+        for i, (layer_T_name, layer_N_name) in enumerate(zip(self.Conv_T_layers, self.Conv_N_layers)):
+            conv_T_layer = getattr(self, layer_T_name)
+            x = conv_T_layer(x)
+            BN_layer = getattr(self, layer_N_name)
+            x = BN_layer(x)
+        x = self.conv_T_final(x)
 
         return x
 
@@ -325,3 +326,8 @@ class ResNet(nn.Module):
                 mod.eval()
                 for param in mod.parameters():
                     param.requires_grad = False
+
+
+model = ResNet(50)
+a = model(torch.ones((1, 3, 512, 512)))
+print(a.shape)
