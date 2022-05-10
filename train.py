@@ -5,10 +5,9 @@
 # @File    : train.py
 # @Software: PyCharm
 
-# 第一个测试计划————使用signal进行训练
 import data_loader
 from comet_ml import Experiment
-from model import ResNet
+from model import ResNet, SRResNet
 
 import torch
 import torchsummary
@@ -33,12 +32,12 @@ torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
 hyper_params = {
-    'ex_number': '3090_ResNet50',
-    "input_size": (3, 512, 512),
+    'ex_number': 'SRResnet',
+    "input_size": (3, 128, 128),
     "learning_rate": 3e-4,
     "epochs": 400,
-    "batch_size": 18,
-    "src_path": '/root/autodl-tmp/BJM/Super_Resolution'
+    "batch_size": 12,
+    "src_path": 'E:/BJM/Super_Resolution'
 }
 
 src_path = hyper_params['src_path']
@@ -60,7 +59,8 @@ if train_comet:
 #            MODEL
 # -------------------------
 
-model = ResNet(50)
+# model = ResNet(18)
+model = SRResNet()
 
 torchsummary.summary(model, input_size=hyper_params["input_size"], batch_size=hyper_params["batch_size"], device='cpu')
 
@@ -84,15 +84,18 @@ raw_test_dir = 'bjm_data/raw_image/test'
 
 train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
                                                      raw_image_path=raw_train_dir,
-                                                     data_txt=train_data_txt)
+                                                     data_txt=train_data_txt,
+                                                     down_scale=2)
 
 val_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_val_dir,
                                                    raw_image_path=raw_val_dir,
-                                                   data_txt=val_data_txt)
+                                                   data_txt=val_data_txt,
+                                                   down_scale=2)
 
 test_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_test_dir,
                                                     raw_image_path=raw_test_dir,
-                                                    data_txt=test_data_txt)
+                                                    data_txt=test_data_txt,
+                                                    down_scale=2)
 
 # when using weightedRandomSampler, it is already balanced random, so DO NOT shuffle again
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
@@ -143,7 +146,7 @@ Epochs = hyper_params['epochs']
 lr = hyper_params['learning_rate']
 
 eval_function = torchmetrics.functional.image.psnr.peak_signal_noise_ratio
-loss_function = nn.MSELoss()
+loss_function = nn.L1Loss()
 
 # Observe that all parameters are being optimized
 optimizer_ft = optim.AdamW(model.parameters(), lr=lr)
@@ -233,7 +236,7 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
                   .format(epoch, train_loss, val_loss, train_evaluation, val_evaluation))
             train_eval_list = np.append(train_eval_list, [train_loss, train_evaluation])
             val_eval_list = np.append(val_eval_list, [val_loss, val_evaluation])
-            if val_evaluation > 30:
+            if val_evaluation > 27:
                 torch.save(save_model.state_dict(),
                            os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
         np.save(os.path.join(output_dir, 'train.npy'), train_eval_list)

@@ -41,11 +41,12 @@ transform = A.Compose([
 
 
 class Super_Resolution_Dataset(Dataset):
-    def __init__(self, low_resolution_image_path, raw_image_path, data_txt, transformer=transform):
+    def __init__(self, low_resolution_image_path, raw_image_path, data_txt, transformer=transform, down_scale=False):
         self.raw_image_path = raw_image_path
         self.low_resolution_image_path = low_resolution_image_path
         self.data_txt = data_txt
         self.transform = transformer
+        self.down_scale = down_scale
         with open(self.data_txt, 'r') as f:
             self.file_list = f.read().splitlines()
 
@@ -58,6 +59,9 @@ class Super_Resolution_Dataset(Dataset):
         self.low_resolution_image = cv2.imread(os.path.join(self.low_resolution_image_path, self.file_list[item]))
         self.low_resolution_image = cv2.cvtColor(self.low_resolution_image, cv2.COLOR_BGR2RGB)
         self.low_resolution_image = cv2.resize(self.low_resolution_image, (512, 512))
+        if self.down_scale:
+            self.low_resolution_image = cv2.resize(self.low_resolution_image, (int(512 / 2 ** self.down_scale),
+                                                                               int(512 / 2 ** self.down_scale)))
         if self.transform is None:
             pass
         else:
