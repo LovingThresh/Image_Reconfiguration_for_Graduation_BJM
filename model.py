@@ -110,26 +110,26 @@ class Bottleneck(nn.Module):
 
     def forward(self, x):
 
-        def _inner_forward(x):
-            residual = x
+        def _inner_forward(input_x):
+            residual = input_x
 
-            out = self.conv1(x)
-            out = self.bn1(out)
-            out = self.relu(out)
+            output = self.conv1(input_x)
+            output = self.bn1(output)
+            output = self.relu(output)
 
-            out = self.conv2(out)
-            out = self.bn2(out)
-            out = self.relu(out)
+            output = self.conv2(output)
+            output = self.bn2(output)
+            output = self.relu(output)
 
-            out = self.conv3(out)
-            out = self.bn3(out)
+            output = self.conv3(output)
+            output = self.bn3(output)
 
             if self.downsample is not None:
-                residual = self.downsample(x)
+                residual = self.downsample(input_x)
 
-            out += residual
+            output += residual
 
-            return out
+            return output
 
         if self.with_cp and x.requires_grad:
             out = cp.checkpoint(_inner_forward, x)
@@ -276,6 +276,7 @@ class ResNet(nn.Module):
             self.Conv_T_layers.append(layer_T_name)
             self.Conv_N_layers.append(layer_Norm_name)
         self.conv_T_final = nn.ConvTranspose2d(64, 3, (2, 2), (2, 2))
+        self.tanh = nn.Tanh()
 
     def init_weights(self):
         for m in self.modules():
@@ -301,6 +302,7 @@ class ResNet(nn.Module):
             BN_layer = getattr(self, layer_N_name)
             x = BN_layer(x)
         x = self.conv_T_final(x)
+        x = self.tanh(x)
 
         return x
 
@@ -326,8 +328,3 @@ class ResNet(nn.Module):
                 mod.eval()
                 for param in mod.parameters():
                     param.requires_grad = False
-
-
-model = ResNet(50)
-a = model(torch.ones((1, 3, 512, 512)))
-print(a.shape)
