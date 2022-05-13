@@ -27,16 +27,16 @@ print(f"Using {device} device")
 
 experiment = object
 
-np.random.seed(0)
-torch.manual_seed(0)
-torch.cuda.manual_seed_all(0)
+np.random.seed(24)
+torch.manual_seed(24)
+torch.cuda.manual_seed_all(24)
 
 hyper_params = {
-    'ex_number': 'SRResnet',
+    'ex_number': 'SRResnet_3090',
     "input_size": (3, 128, 128),
-    "learning_rate": 3e-4,
-    "epochs": 400,
-    "batch_size": 12,
+    "learning_rate": 1e-4,
+    "epochs": 200,
+    "batch_size": 8,
     "src_path": 'E:/BJM/Super_Resolution'
 }
 
@@ -59,7 +59,7 @@ if train_comet:
 #            MODEL
 # -------------------------
 
-# model = ResNet(18)
+# model = ResNet(34)
 model = SRResNet()
 
 torchsummary.summary(model, input_size=hyper_params["input_size"], batch_size=hyper_params["batch_size"], device='cpu')
@@ -151,7 +151,7 @@ loss_function = nn.L1Loss()
 # Observe that all parameters are being optimized
 optimizer_ft = optim.AdamW(model.parameters(), lr=lr)
 exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer_ft, int(Epochs / 10))
-
+# exp_lr_scheduler = object
 
 # -------------------------
 #           Train
@@ -177,14 +177,13 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
             # forward
             # track history if only in train
             output = train_model(inputs)
-            evaluation = eval_fn(output, target)
-            target = target.float()
+            evaluation = eval_fn(output * 255, target * 255)
             loss = loss_fn(output, target)
             loss.backward()
             optimizer.step()
 
-            training_loss += loss.detach().cpu().numpy()
-            training_evaluation += evaluation.detach().cpu().numpy()
+            training_loss += loss.item() * inputs.size(0)
+            training_evaluation += evaluation.item() * inputs.size(0)
             it = it + 1
             print("Iter:{}/{}, Training Loss:{:.2f}".format(it, len(train_load), training_loss))
 
@@ -205,7 +204,7 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
             output = valid_model(inputs)
 
             target = target.to(Device)
-            evaluation = eval_fn(output, target)
+            evaluation = eval_fn(output * 255, target * 255)
             target = target.float()
             loss = loss_fn(output, target)
             valid_loss += loss.detach().cpu().numpy()
@@ -236,7 +235,7 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
                   .format(epoch, train_loss, val_loss, train_evaluation, val_evaluation))
             train_eval_list = np.append(train_eval_list, [train_loss, train_evaluation])
             val_eval_list = np.append(val_eval_list, [val_loss, val_evaluation])
-            if val_evaluation > 27:
+            if val_evaluation > 23:
                 torch.save(save_model.state_dict(),
                            os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
         np.save(os.path.join(output_dir, 'train.npy'), train_eval_list)
