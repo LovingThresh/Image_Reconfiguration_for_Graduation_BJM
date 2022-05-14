@@ -33,7 +33,7 @@ torch.cuda.manual_seed_all(24)
 
 hyper_params = {
     'ex_number': 'SRResnet_3090',
-    "input_size": (3, 128, 128),
+    "input_size": (3, 512, 512),
     "learning_rate": 1e-4,
     "epochs": 200,
     "batch_size": 8,
@@ -59,8 +59,8 @@ if train_comet:
 #            MODEL
 # -------------------------
 
-# model = ResNet(34)
-model = SRResNet()
+model = ResNet(50)
+# model = SRResNet()
 
 torchsummary.summary(model, input_size=hyper_params["input_size"], batch_size=hyper_params["batch_size"], device='cpu')
 
@@ -85,17 +85,17 @@ raw_test_dir = 'bjm_data/raw_image/test'
 train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
                                                      raw_image_path=raw_train_dir,
                                                      data_txt=train_data_txt,
-                                                     down_scale=2)
+                                                     down_scale=0)
 
 val_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_val_dir,
                                                    raw_image_path=raw_val_dir,
                                                    data_txt=val_data_txt,
-                                                   down_scale=2)
+                                                   down_scale=0)
 
 test_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_test_dir,
                                                     raw_image_path=raw_test_dir,
                                                     data_txt=test_data_txt,
-                                                    down_scale=2)
+                                                    down_scale=0)
 
 # when using weightedRandomSampler, it is already balanced random, so DO NOT shuffle again
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)

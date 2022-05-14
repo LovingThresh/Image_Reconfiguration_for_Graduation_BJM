@@ -265,7 +265,7 @@ class ResNet(nn.Module):
 
         self.Conv_T_layers = []
         self.Conv_N_layers = []
-        self.conv_T_blocks = [512, 256, 128, 64, 32]
+        self.conv_T_blocks = [2048, 1024, 512, 256, 64]
         for i, conv_T in enumerate(self.conv_T_blocks[:-1]):
             in_channel = conv_T
             out_channel = self.conv_T_blocks[i + 1]
@@ -277,7 +277,7 @@ class ResNet(nn.Module):
             self.add_module(layer_Norm_name, Norm_layer)
             self.Conv_T_layers.append(layer_T_name)
             self.Conv_N_layers.append(layer_Norm_name)
-        self.conv_T_final = nn.ConvTranspose2d(32, 3, (2, 2), (2, 2))
+        self.conv_T_final = nn.ConvTranspose2d(64, 3, (2, 2), (2, 2))
         self.tanh = nn.Tanh()
 
     def init_weights(self):
