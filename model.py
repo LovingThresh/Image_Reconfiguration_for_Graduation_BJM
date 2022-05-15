@@ -299,6 +299,7 @@ class ResNet(nn.Module):
                 outs.append(x)
         for i, (layer_T_name, layer_N_name) in enumerate(zip(self.Conv_T_layers, self.Conv_N_layers)):
             conv_T_layer = getattr(self, layer_T_name)
+            x = outs[len(outs) - i - 1] + x
             x = conv_T_layer(x)
             BN_layer = getattr(self, layer_N_name)
             x = BN_layer(x)

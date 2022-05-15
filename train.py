@@ -4,253 +4,308 @@
 # @Email   : csu1704liuye@163.com | sy2113205@buaa.edu.cn
 # @File    : train.py
 # @Software: PyCharm
-
-import data_loader
-from comet_ml import Experiment
-from model import ResNet, SRResNet
-
-import torch
-import torchsummary
-import torchmetrics
-import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader
-
 import os
+import json
+import torch
 import shutil
 import datetime
+import data_loader
 import numpy as np
+from torch.utils.data import DataLoader
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using {device} device")
 
-experiment = object
+# ==============================================================================
+# =                                 data                                       =
+# ==============================================================================
 
-np.random.seed(24)
-torch.manual_seed(24)
-torch.cuda.manual_seed_all(24)
 
-hyper_params = {
-    'ex_number': 'SRResnet_3090',
-    "input_size": (3, 128, 128),
-    "learning_rate": 1e-4,
-    "epochs": 200,
-    "batch_size": 8,
-    "src_path": 'E:/BJM/Super_Resolution'
-}
+def get_data(down_scale=0, batch_size=1):
+    train_data_txt = './bjm_data/train.txt'
+    val_data_txt = './bjm_data/valid.txt'
+    test_data_txt = './bjm_data/test.txt'
 
-src_path = hyper_params['src_path']
-train_comet = False
+    low_rs_train_dir = 'bjm_data/bicubic/train'
+    raw_train_dir = 'bjm_data/raw_image/train'
 
-# -------------------------
-#           Comet
-# -------------------------
+    low_rs_val_dir = 'bjm_data/bicubic/valid'
+    raw_val_dir = 'bjm_data/raw_image/valid'
 
-if train_comet:
-    experiment = Experiment(
-        api_key="sDV9A5CkoqWZuJDeI9JbJMRvp",
-        project_name="Image_Reconfiguration_BJM",
-        workspace="LovingThresh",
-    )
-    experiment.log_parameters(hyper_params)
+    low_rs_test_dir = 'bjm_data/bicubic/test'
+    raw_test_dir = 'bjm_data/raw_image/test'
 
-# -------------------------
-#            MODEL
-# -------------------------
+    train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
+                                                         raw_image_path=raw_train_dir,
+                                                         data_txt=train_data_txt,
+                                                         down_scale=down_scale)
 
-model = ResNet(50)
-# model = SRResNet()
+    val_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_val_dir,
+                                                       raw_image_path=raw_val_dir,
+                                                       data_txt=val_data_txt,
+                                                       down_scale=down_scale)
 
-torchsummary.summary(model, input_size=hyper_params["input_size"], batch_size=hyper_params["batch_size"], device='cpu')
+    test_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_test_dir,
+                                                        raw_image_path=raw_test_dir,
+                                                        data_txt=test_data_txt,
+                                                        down_scale=down_scale)
 
-# -------------------------
-#            DATA
-# -------------------------
-batch_size = hyper_params['batch_size']
+    # when using weightedRandomSampler, it is already balanced random, so DO NOT shuffle again
 
-train_data_txt = './bjm_data/train.txt'
-val_data_txt = './bjm_data/valid.txt'
-test_data_txt = './bjm_data/test.txt'
+    Train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    Val_loader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
+    Test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 
-low_rs_train_dir = 'bjm_data/bicubic/train'
-raw_train_dir = 'bjm_data/raw_image/train'
+    return Train_loader, Val_loader, Test_loader
 
-low_rs_val_dir = 'bjm_data/bicubic/valid'
-raw_val_dir = 'bjm_data/raw_image/valid'
 
-low_rs_test_dir = 'bjm_data/bicubic/test'
-raw_test_dir = 'bjm_data/raw_image/test'
-
-train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
-                                                     raw_image_path=raw_train_dir,
-                                                     data_txt=train_data_txt,
-                                                     down_scale=0)
-
-val_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_val_dir,
-                                                   raw_image_path=raw_val_dir,
-                                                   data_txt=val_data_txt,
-                                                   down_scale=0)
-
-test_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_test_dir,
-                                                    raw_image_path=raw_test_dir,
-                                                    data_txt=test_data_txt,
-                                                    down_scale=0)
-
-# when using weightedRandomSampler, it is already balanced random, so DO NOT shuffle again
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-val_loader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
 # ==============================================================================
 # =                           copy & upload                                    =
 # ==============================================================================
 
-a = str(datetime.datetime.now())
-b = list(a)
-b[10] = '-'
-b[13] = '-'
-b[16] = '-'
-output_dir = ''.join(b)
-output_dir = os.path.join(src_path, output_dir)
-os.mkdir(output_dir)
-os.mkdir(os.path.join(output_dir, 'save_model'))
-hyper_params['output_dir'] = output_dir
 
 # 本地复制源代码，便于复现(模型文件、数据文件、训练文件、测试文件)
 # 冷代码
-shutil.copytree('utils', '{}/{}'.format(output_dir, 'utils'))
+def copy_and_upload(experiment_, hyper_params_, comet, src_path):
+    a = str(datetime.datetime.now())
+    b = list(a)
+    b[10] = '-'
+    b[13] = '-'
+    b[16] = '-'
+    output_dir = ''.join(b)
+    output_dir = os.path.join(src_path, output_dir)
+    os.mkdir(output_dir)
+    os.mkdir(os.path.join(output_dir, 'summary'))
+    os.mkdir(os.path.join(output_dir, 'save_model'))
+    hyper_params_['output_dir'] = output_dir
+    shutil.copytree('utils', '{}/{}'.format(output_dir, 'utils'))
 
-# 个人热代码
-shutil.copy('model.py', output_dir)
-shutil.copy('train.py', output_dir)
-shutil.copy('data_loader.py', output_dir)
+    # 个人热代码
+    shutil.copy('model.py', output_dir)
+    shutil.copy('train.py', output_dir)
+    shutil.copy('data_loader.py', output_dir)
 
-# 云端上次源代码
-if train_comet:
-    experiment.log_asset_folder('utils', log_file_name=True)
+    # 云端上次源代码
+    if comet:
+        experiment_.log_asset_folder('utils', log_file_name=True)
 
-    experiment.log_code('model.py')
-    experiment.log_code('train.py')
-    experiment.log_code('data_loader.py')
+        experiment_.log_code('model.py')
+        experiment_.log_code('train.py')
+        experiment_.log_code('data_loader.py')
+        hyper_params_['ex_key'] = experiment_.get_key()
+        experiment_.log_parameters(hyper_params_)
+        experiment_.set_name('{}-{}'.format(hyper_params_['ex_date'], hyper_params_['ex_number']))
 
-hyper_params['output_dir'] = output_dir
-hyper_params['ex_date'] = a[:10]
-
-if train_comet:
-    hyper_params['ex_key'] = experiment.get_key()
-    experiment.log_parameters(hyper_params)
-    experiment.set_name('{}-{}'.format(hyper_params['ex_date'], hyper_params['ex_number']))
-# -------------------------
-#           Setting
-# -------------------------
-
-Epochs = hyper_params['epochs']
-lr = hyper_params['learning_rate']
-
-eval_function = torchmetrics.functional.image.psnr.peak_signal_noise_ratio
-loss_function = nn.L1Loss()
-
-# Observe that all parameters are being optimized
-optimizer_ft = optim.AdamW(model.parameters(), lr=lr)
-exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer_ft, int(Epochs / 10))
-# exp_lr_scheduler = object
-
-# -------------------------
-#           Train
-# -------------------------
+    hyper_params_['output_dir'] = output_dir
+    hyper_params_['ex_date'] = a[:10]
+    with open('{}/hyper_params.json'.format(output_dir), 'w') as fp:
+        json.dump(hyper_params_, fp)
+    return output_dir
 
 
-def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epochs, scheduler, Device, comet=False):
-    training_model = training_model.to(device)
+def operate_dict_mean(ob_dict: dict, iter_num):
+    new_ob_dict = {}
 
-    def train_batch(train_model):
-        training_loss = 0.0
-        training_evaluation = 0.0
-        train_model.train()
-        # Iterate over data.
-        it = 0
-        for batch in train_load:
-            inputs, target = batch
-            inputs = inputs.to(Device)
-            target = target.to(Device)
-            # zero the parameter gradients
-            optimizer.zero_grad()
+    def mean_dict(value):
+        return value / iter_num
 
-            # forward
-            # track history if only in train
-            output = train_model(inputs)
-            evaluation = eval_fn(output * 255, target * 255)
+    for k, v in ob_dict.items():
+        new_ob_dict[k] = mean_dict(v)
+
+    return new_ob_dict
+
+
+def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, scheduler):
+    it = 0
+    training_loss = {}
+    training_evaluation = {}
+
+    training_loss_sum = {}
+    training_eval_sum = {}
+
+    training_loss_mean = {}
+    training_eval_mean = {}
+    for batch in train_load:
+        it = it + 1
+
+        inputs, target = batch
+        inputs = inputs.to(Device)
+        target = target.to(Device)
+        optimizer.zero_grad()
+
+        output = train_model(inputs)
+
+        loss = 0
+        sum_loss = 0
+        if isinstance(loss_fn, dict):
+            if it == 1:
+                for k, _ in loss_fn.items():
+                    training_loss_sum[k] = 0
+            for k, v in loss_fn.items():
+                loss = v(output, target)
+                sum_loss += loss
+                training_loss[k] = loss.item()
+                training_loss_sum[k] += loss.item()
+            loss = sum_loss
+        else:
+            if it == 1:
+                training_loss_sum['training_loss_mean'] = 0
             loss = loss_fn(output, target)
-            loss.backward()
-            optimizer.step()
+            training_loss['training_loss'] = loss.item()
+            training_loss_sum['training_loss_mean'] += loss.item()
+        loss.backward()
+        optimizer.step()
 
-            training_loss += loss.item()
-            training_evaluation += evaluation.item()
-            it = it + 1
-            print("Iter:{}/{}, Training Loss:{:.2f}".format(it, len(train_load), training_loss))
-
-        training_loss /= len(train_load)
-        training_evaluation /= len(train_load)
-        scheduler.step()
-
-        return training_loss, training_evaluation
-
-    def val_batch(valid_model):
-        valid_loss = 0.0
-        valid_evaluation = 0.0
-        valid_model.eval()
-        for batch in val_load:
-            inputs, target = batch
-
-            inputs = inputs.to(Device)
-            output = valid_model(inputs)
-
-            target = target.to(Device)
+        evaluation = 0
+        if isinstance(eval_fn, dict):
+            if it == 1:
+                for k, _ in eval_fn.items():
+                    training_eval_sum[k] = 0
+            for k, v in eval_fn.items():
+                evaluation = v(output, target)
+                training_evaluation[k] = evaluation.item()
+                training_eval_sum[k] += evaluation.item()
+        else:
+            if it == 1:
+                training_eval_sum['training_loss_mean'] = 0
             evaluation = eval_fn(output * 255, target * 255)
-            target = target.float()
+            training_evaluation['training_evaluation'] = evaluation.item()
+            training_eval_sum['training_evaluation_mean'] += evaluation.item()
+
+        training_loss_mean = operate_dict_mean(training_loss_sum, it)
+        training_eval_mean = operate_dict_mean(training_eval_sum, it)
+
+        print("Iter:{}/{},".format(it, len(train_load)))
+        print(training_loss)
+        print(training_evaluation)
+        print("Iter:{}/{}_Mean,".format(it, len(train_load)))
+        print(training_loss_mean)
+        print(training_eval_mean)
+        print("-" * 80)
+
+    scheduler.step()
+
+    training_dict = {
+        'training_loss_mean': training_loss_mean,
+        'training_evaluation_mean': training_eval_mean,
+    }
+    return training_loss_mean, training_eval_mean, training_dict
+
+
+def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn):
+    it = 0
+    valid_loss = {}
+    valid_evaluation = {}
+
+    valid_loss_sum = {}
+    valid_eval_sum = {}
+
+    valid_loss_mean = {}
+    valid_eval_mean = {}
+
+    for batch in val_load:
+        it = it + 1
+        inputs, target = batch
+
+        inputs = inputs.to(Device)
+        output = valid_model(inputs)
+        target = target.to(Device)
+
+        loss = 0
+        if isinstance(loss_fn, dict):
+            if it == 1:
+                for k, _ in loss_fn.items():
+                    valid_loss_sum[k] = 0
+            for k, v in loss_fn.items():
+                loss = v(output, target)
+                valid_loss[k] = loss.item()
+                valid_loss_sum[k] += loss.item()
+        else:
+            if it == 1:
+                valid_loss_sum['validation_loss_mean'] = 0
             loss = loss_fn(output, target)
-            valid_loss += loss.item()
-            valid_evaluation += evaluation.item()
+            valid_loss['validation_loss'] = loss.item()
+            valid_loss_sum['validation_loss_mean'] += loss.item()
 
-        valid_loss /= len(val_load)
-        valid_evaluation /= len(val_load)
+        evaluation = 0
+        if isinstance(eval_fn, dict):
+            if it == 1:
+                for k, _ in eval_fn.items():
+                    valid_eval_sum[k] = 0
+            for k, v in eval_fn.items():
+                evaluation = v(output, target)
+                valid_evaluation[k] = evaluation.item()
+                valid_eval_sum[k] += evaluation.item()
+        else:
+            if it == 1:
+                valid_eval_sum['training_loss_mean'] = 0
+            evaluation = eval_fn(output * 255, target * 255)
+            valid_evaluation['validation_evaluation'] = evaluation.item()
+            valid_eval_sum['validation_evaluation_mean'] += evaluation.item()
 
-        return valid_loss, valid_evaluation, valid_model
+        valid_loss_mean = operate_dict_mean(valid_loss_sum, it)
+        valid_eval_mean = operate_dict_mean(valid_eval_sum, it)
 
-    def train_process(B_comet):
+        print("Iter:{}/{},".format(it, len(val_load)))
+        print(valid_loss)
+        print(valid_evaluation)
+        print("Iter:{}/{}_Mean,".format(it, len(val_load)))
+        print(valid_loss_mean)
+        print(valid_eval_mean)
+        print("-" * 80)
+        print('=' * 80)
+    valid_dict = {
+        'validation_loss_mean': valid_loss_mean,
+        'validation_evaluation_mean': valid_eval_mean
+    }
+
+    return valid_loss_mean, valid_eval_mean, valid_dict
+
+
+def write_dict(dict_to_write, writer, step):
+    for k, v in dict_to_write.items():
+        for i, j in v.items():
+            writer.add_scalar('{}/{}'.format(k, i), j, step)
+
+
+def write_summary(train_writer_summary, valid_writer_summary, train_dict, valid_dict, step):
+    write_dict(train_dict, train_writer_summary, step)
+    write_dict(valid_dict, valid_writer_summary, step)
+
+
+def train(training_model, optimizer, loss_fn, eval_fn,
+          train_load, val_load, epochs, scheduler, Device,
+          threshold, output_dir, train_writer_summary, valid_writer_summary,
+          experiment, comet=False):
+    training_model = training_model.to(Device)
+
+    def train_process(B_comet, experiment_comet):
         train_eval_list = np.array([], dtype=float)
         val_eval_list = np.array([], dtype=float)
         for epoch in range(epochs):
+
             print(f'Epoch {epoch}/{epochs - 1}')
             print('-' * 10)
-            train_loss, train_evaluation = train_batch(training_model)
-            val_loss, val_evaluation, save_model = val_batch(training_model)
+
+            training_model.train(True)
+            train_loss, train_evaluation, train_dict = train_epoch(training_model, train_load, Device, loss_fn, eval_fn,
+                                                                   optimizer, scheduler)
+            training_model.train(False)
+            val_loss, val_evaluation, valid_dict = val_epoch(training_model, val_load, Device, loss_fn, eval_fn)
+            write_summary(train_writer_summary, valid_writer_summary, train_dict, valid_dict, step=epoch)
+
             if B_comet:
-                experiment.log_metrics({"epoch_train_psnr": train_evaluation,
-                                        "epoch_train_loss": train_loss,
-                                        "epoch_val_psnr": val_evaluation,
-                                        "epoch_val_loss": val_loss
-                                        }, step=epoch)
+                experiment_comet.log_metrics(train_dict, step=epoch)
+                experiment_comet.log_metrics(valid_dict, step=epoch)
 
-            print('Epoch: {}, Training Loss:{:.5f}, Validation Loss: {:.5f}, '
-                  'Mean Training evaluation:{:.5f}, Mean Validation evaluation:{:.5f} '
+            print('Epoch: {}, \n Mean Training Loss:{}, Mean Validation Loss: {}, \n'
+                  'Mean Training evaluation:{}, \nMean Validation evaluation:{} '
                   .format(epoch, train_loss, val_loss, train_evaluation, val_evaluation))
-            train_eval_list = np.append(train_eval_list, [train_loss, train_evaluation])
-            val_eval_list = np.append(val_eval_list, [val_loss, val_evaluation])
-            if val_evaluation > 22.5:
-                torch.save(save_model.state_dict(),
-                           os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
-        np.save(os.path.join(output_dir, 'train.npy'), train_eval_list)
-        np.save(os.path.join(output_dir, 'train.npy'), val_eval_list)
 
-        print(np.max(val_eval_list))
+            if val_evaluation['eval_function_psnr'] > threshold:
+                torch.save(training_model.state_dict(),
+                           os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
 
     if not comet:
-        train_process(comet)
+        train_process(comet, experiment)
     else:
         with experiment.train():
-            train_process(comet)
-
-
-train(model, optimizer_ft, loss_function, eval_function,
-      train_loader, val_loader, Epochs, exp_lr_scheduler, device,
-      train_comet)
+            train_process(comet, experiment)
