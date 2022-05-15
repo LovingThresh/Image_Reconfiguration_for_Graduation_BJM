@@ -33,7 +33,7 @@ torch.cuda.manual_seed_all(24)
 
 hyper_params = {
     'ex_number': 'SRResnet_3090',
-    "input_size": (3, 512, 512),
+    "input_size": (3, 128, 128),
     "learning_rate": 1e-4,
     "epochs": 200,
     "batch_size": 8,
@@ -112,6 +112,7 @@ b[16] = '-'
 output_dir = ''.join(b)
 output_dir = os.path.join(src_path, output_dir)
 os.mkdir(output_dir)
+os.mkdir(os.path.join(output_dir, 'save_model'))
 hyper_params['output_dir'] = output_dir
 
 # 本地复制源代码，便于复现(模型文件、数据文件、训练文件、测试文件)
@@ -182,8 +183,8 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
             loss.backward()
             optimizer.step()
 
-            training_loss += loss.item() * inputs.size(0)
-            training_evaluation += evaluation.item() * inputs.size(0)
+            training_loss += loss.item()
+            training_evaluation += evaluation.item()
             it = it + 1
             print("Iter:{}/{}, Training Loss:{:.2f}".format(it, len(train_load), training_loss))
 
@@ -207,8 +208,8 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
             evaluation = eval_fn(output * 255, target * 255)
             target = target.float()
             loss = loss_fn(output, target)
-            valid_loss += loss.detach().cpu().numpy()
-            valid_evaluation += evaluation.detach().cpu().numpy()
+            valid_loss += loss.item()
+            valid_evaluation += evaluation.item()
 
         valid_loss /= len(val_load)
         valid_evaluation /= len(val_load)
@@ -235,7 +236,7 @@ def train(training_model, optimizer, loss_fn, eval_fn, train_load, val_load, epo
                   .format(epoch, train_loss, val_loss, train_evaluation, val_evaluation))
             train_eval_list = np.append(train_eval_list, [train_loss, train_evaluation])
             val_eval_list = np.append(val_eval_list, [val_loss, val_evaluation])
-            if val_evaluation > 23:
+            if val_evaluation > 22.5:
                 torch.save(save_model.state_dict(),
                            os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
         np.save(os.path.join(output_dir, 'train.npy'), train_eval_list)

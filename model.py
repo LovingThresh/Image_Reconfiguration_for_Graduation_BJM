@@ -260,7 +260,6 @@ class ResNet(nn.Module):
             layer_name = f'layer{i + 1}'
             self.add_module(layer_name, res_layer)
             self.res_layers.append(layer_name)
-
         self.feat_dim = block.expansion * 64 * 2 ** (len(stage_blocks) - 1)
 
         self.Conv_T_layers = []

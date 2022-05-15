@@ -56,9 +56,10 @@ class Super_Resolution_Dataset(Dataset):
     def __getitem__(self, item):
         self.raw_image = cv2.imread(os.path.join(self.raw_image_path, self.file_list[item]))
         self.raw_image = cv2.cvtColor(self.raw_image, cv2.COLOR_BGR2RGB)
+        self.raw_image = cv2.resize(self.raw_image, (128, 128))
         self.low_resolution_image = cv2.imread(os.path.join(self.low_resolution_image_path, self.file_list[item]))
         self.low_resolution_image = cv2.cvtColor(self.low_resolution_image, cv2.COLOR_BGR2RGB)
-        self.low_resolution_image = cv2.resize(self.low_resolution_image, (512, 512))
+        self.low_resolution_image = cv2.resize(self.low_resolution_image, (128, 128))
         if self.down_scale:
             self.low_resolution_image = cv2.resize(self.low_resolution_image, (int(512 / 2 ** self.down_scale),
                                                                                int(512 / 2 ** self.down_scale)))
