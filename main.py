@@ -35,7 +35,8 @@ hyper_params = {
     "epochs"        : 400,
     "threshold"     : 22,
     "src_path"      : 'E:/BJM/Super_Resolution',
-    "checkpoint"    : True
+    "checkpoint"    : True,
+    "check_path"    : 'E:/bjm/Super_Resolution/2022-05-16-09-44-25.670141/checkpoint/400.tar'
 }
 
 experiment  =   object
@@ -48,7 +49,7 @@ input_size  =   hyper_params['input_size']
 re_size     =   hyper_params['input_size'][1:]
 threshold   =   hyper_params['threshold']
 Checkpoint  =   hyper_params['checkpoint']
-
+check_path  =   hyper_params['check_path']
 # ===============================================================================
 # =                                    Comet                                    =
 # ===============================================================================
@@ -107,7 +108,7 @@ val_writer   =  SummaryWriter('{}/valer_{}'.format(os.path.join(output_dir, 'sum
 # =                                Checkpoint                                   =
 # ===============================================================================
 if Checkpoint:
-    checkpoint = torch.load('E:/bjm/Super_Resolution/2022-05-16-09-44-25.670141/checkpoint/400.tar')
+    checkpoint = torch.load(check_path)
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer_ft.load_state_dict(checkpoint['optimizer_state_dict'])
     for state in optimizer_ft.state.values():
