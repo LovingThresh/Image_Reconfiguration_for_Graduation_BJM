@@ -30,11 +30,12 @@ hyper_params = {
     "ex_number"     : 'SRResnet_3080Ti',
     "down_scale"    : 0,
     "input_size"    : (3, 128, 128),
-    "batch_size"    : 16,
-    "learning_rate" : 1e-5,
-    "epochs"        : 200,
+    "batch_size"    : 64,
+    "learning_rate" : 2e-5,
+    "epochs"        : 400,
     "threshold"     : 22,
-    "src_path"      : 'E:/BJM/Super_Resolution'
+    "src_path"      : 'E:/BJM/Super_Resolution',
+    "checkpoint"    : True
 }
 
 experiment  =   object
@@ -43,9 +44,10 @@ Epochs      =   hyper_params['epochs']
 src_path    =   hyper_params['src_path']
 down_scale  =   hyper_params['down_scale']
 batch_size  =   hyper_params['batch_size']
-input_size  =   hyper_params["input_size"]
-re_size     =   hyper_params["input_size"][1:]
+input_size  =   hyper_params['input_size']
+re_size     =   hyper_params['input_size'][1:]
 threshold   =   hyper_params['threshold']
+Checkpoint  =   hyper_params['checkpoint']
 
 # ===============================================================================
 # =                                    Comet                                    =
@@ -98,7 +100,21 @@ exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer_ft, int(Epochs / 10)
 output_dir   =  copy_and_upload(experiment, hyper_params, train_comet, src_path)
 timestamp    =  datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 train_writer =  SummaryWriter('{}/trainer_{}'.format(os.path.join(output_dir, 'summary'), timestamp))
-val_writer  =  SummaryWriter('{}/valer_{}'.format(os.path.join(output_dir, 'summary'), timestamp))
+val_writer   =  SummaryWriter('{}/valer_{}'.format(os.path.join(output_dir, 'summary'), timestamp))
+
+
+# ===============================================================================
+# =                                Checkpoint                                   =
+# ===============================================================================
+if Checkpoint:
+    checkpoint = torch.load('E:/bjm/Super_Resolution/2022-05-16-09-44-25.670141/checkpoint/400.tar')
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer_ft.load_state_dict(checkpoint['optimizer_state_dict'])
+    for state in optimizer_ft.state.values():
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor):
+                state[k] = v.cuda()
+    exp_lr_scheduler.load_state_dict(checkpoint['lr_schedule_state_dict'])
 
 # ===============================================================================
 # =                                    Training                                 =

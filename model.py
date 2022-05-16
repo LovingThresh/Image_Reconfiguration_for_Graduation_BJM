@@ -343,12 +343,12 @@ class ConvolutionalBlock(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=False, activation=None):
         """
-        :param in_channels: number of input channels
-        :param out_channels: number of output channels
-        :param kernel_size: kernel size
-        :param stride: stride
-        :param batch_norm: include a BN layer?
-        :param activation: Type of activation; None if none
+        param in_channels: number of input channels
+        param out_channels: number of output channels
+        param kernel_size: kernel size
+        param stride: stride
+        param batch_norm: include a BN layer?
+        param activation: Type of activation; None if none
         """
         super(ConvolutionalBlock, self).__init__()
 
@@ -383,8 +383,8 @@ class ConvolutionalBlock(nn.Module):
         """
         Forward propagation.
 
-        :param input: input images, a tensor of size (N, in_channels, w, h)
-        :return: output images, a tensor of size (N, out_channels, w, h)
+        param input: input images, a tensor of size (N, in_channels, w, h)
+        return: output images, a tensor of size (N, out_channels, w, h)
         """
         output = self.conv_block(input)  # (N, out_channels, w, h)
 
@@ -398,9 +398,9 @@ class SubPixelConvolutionalBlock(nn.Module):
 
     def __init__(self, kernel_size=3, n_channels=64, scaling_factor=2):
         """
-        :param kernel_size: kernel size of the convolution
-        :param n_channels: number of input and output channels
-        :param scaling_factor: factor to scale input images by (along both dimensions)
+        param kernel_size: kernel size of the convolution
+        param n_channels: number of input and output channels
+        param scaling_factor: factor to scale input images by (along both dimensions)
         """
         super(SubPixelConvolutionalBlock, self).__init__()
 
@@ -415,8 +415,8 @@ class SubPixelConvolutionalBlock(nn.Module):
         """
         Forward propagation.
 
-        :param input: input images, a tensor of size (N, n_channels, w, h)
-        :return: scaled output images, a tensor of size (N, n_channels, w * scaling factor, h * scaling factor)
+        param input: input images, a tensor of size (N, n_channels, w, h)
+        return: scaled output images, a tensor of size (N, n_channels, w * scaling factor, h * scaling factor)
         """
         output = self.conv(input)  # (N, n_channels * scaling factor^2, w, h)
         output = self.pixel_shuffle(output)  # (N, n_channels, w * scaling factor, h * scaling factor)
@@ -432,8 +432,8 @@ class ResidualBlock(nn.Module):
 
     def __init__(self, kernel_size=3, n_channels=64):
         """
-        :param kernel_size: kernel size
-        :param n_channels: number of input and output channels (same because the input must be added to the output)
+        param kernel_size: kernel size
+        param n_channels: number of input and output channels (same because the input must be added to the output)
         """
         super(ResidualBlock, self).__init__()
 
@@ -449,8 +449,8 @@ class ResidualBlock(nn.Module):
         """
         Forward propagation.
 
-        :param input: input images, a tensor of size (N, n_channels, w, h)
-        :return: output images, a tensor of size (N, n_channels, w, h)
+        param input: input images, a tensor of size (N, n_channels, w, h)
+        return: output images, a tensor of size (N, n_channels, w, h)
         """
         residual = input  # (N, n_channels, w, h)
         output = self.conv_block1(input)  # (N, n_channels, w, h)
@@ -467,11 +467,11 @@ class SRResNet(nn.Module):
 
     def __init__(self, large_kernel_size=9, small_kernel_size=3, n_channels=64, n_blocks=16, scaling_factor=4):
         """
-        :param large_kernel_size: kernel size of the first and last convolutions which transform the inputs and outputs
-        :param small_kernel_size: kernel size of all convolutions in-between, i.e. those in the residual and subpixel convolutional blocks
-        :param n_channels: number of channels in-between, i.e. the input and output channels for the residual and subpixel convolutional blocks
-        :param n_blocks: number of residual blocks
-        :param scaling_factor: factor to scale input images by (along both dimensions) in the subpixel convolutional block
+        param large_kernel_size: kernel size of the first and last convolutions which transform the inputs and outputs
+        param small_kernel_size: kernel size of all convolutions in-between, i.e. those in the residual and subpixel convolutional blocks
+        param n_channels: number of channels in-between, i.e. the input and output channels for the residual and subpixel convolutional blocks
+        param n_blocks: number of residual blocks
+        param scaling_factor: factor to scale input images by (along both dimensions) in the subpixel convolutional block
         """
         super(SRResNet, self).__init__()
 
@@ -527,11 +527,11 @@ class Generator(nn.Module):
 
     def __init__(self, large_kernel_size=9, small_kernel_size=3, n_channels=64, n_blocks=16, scaling_factor=4):
         """
-        :param large_kernel_size: kernel size of the first and last convolutions which transform the inputs and outputs
-        :param small_kernel_size: kernel size of all convolutions in-between, i.e. those in the residual and subpixel convolutional blocks
-        :param n_channels: number of channels in-between, i.e. the input and output channels for the residual and subpixel convolutional blocks
-        :param n_blocks: number of residual blocks
-        :param scaling_factor: factor to scale input images by (along both dimensions) in the subpixel convolutional block
+        param large_kernel_size: kernel size of the first and last convolutions which transform the inputs and outputs
+        param small_kernel_size: kernel size of all convolutions in-between, i.e. those in the residual and subpixel convolutional blocks
+        param n_channels: number of channels in-between, i.e. the input and output channels for the residual and subpixel convolutional blocks
+        param n_blocks: number of residual blocks
+        param scaling_factor: factor to scale input images by (along both dimensions) in the subpixel convolutional block
         """
         super(Generator, self).__init__()
 
@@ -543,7 +543,7 @@ class Generator(nn.Module):
         """
         Initialize with weights from a trained SRResNet.
 
-        :param srresnet_checkpoint: checkpoint filepath
+        param srresnet_checkpoint: checkpoint filepath
         """
         srresnet = torch.load(srresnet_checkpoint)['model']
         self.net.load_state_dict(srresnet.state_dict())
@@ -569,10 +569,10 @@ class Discriminator(nn.Module):
 
     def __init__(self, kernel_size=3, n_channels=64, n_blocks=8, fc_size=1024):
         """
-        :param kernel_size: kernel size in all convolutional blocks
-        :param n_channels: number of output channels in the first convolutional block, after which it is doubled in every 2nd block thereafter
-        :param n_blocks: number of convolutional blocks
-        :param fc_size: size of the first fully connected layer
+        param kernel_size: kernel size in all convolutional blocks
+        param n_channels: number of output channels in the first convolutional block, after which it is doubled in every 2nd block thereafter
+        param n_blocks: number of convolutional blocks
+        param fc_size: size of the first fully connected layer
         """
         super(Discriminator, self).__init__()
 
@@ -631,8 +631,8 @@ class TruncatedVGG19(nn.Module):
 
     def __init__(self, i, j):
         """
-        :param i: the index i in the definition above
-        :param j: the index j in the definition above
+        param i: the index i in the definition above
+        param j: the index j in the definition above
         """
         super(TruncatedVGG19, self).__init__()
 

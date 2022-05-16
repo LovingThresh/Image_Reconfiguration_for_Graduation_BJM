@@ -272,12 +272,12 @@ def write_summary(train_writer_summary, valid_writer_summary, train_dict, valid_
 def train(training_model, optimizer, loss_fn, eval_fn,
           train_load, val_load, epochs, scheduler, Device,
           threshold, output_dir, train_writer_summary, valid_writer_summary,
-          experiment, comet=False):
+          experiment, comet=False, init_epoch=1):
     training_model = training_model.to(Device)
 
-    def train_process(B_comet, experiment_comet):
+    def train_process(B_comet, experiment_comet, init_epoch_num=init_epoch):
 
-        for epoch in range(1, epochs + 1):
+        for epoch in range(init_epoch_num, epochs + init_epoch_num):
 
             print(f'Epoch {epoch}/{epochs - 1}')
             print('-' * 10)
