@@ -10,7 +10,6 @@ import torch
 import shutil
 import datetime
 import data_loader
-import numpy as np
 from torch.utils.data import DataLoader
 
 
@@ -75,6 +74,7 @@ def copy_and_upload(experiment_, hyper_params_, comet, src_path):
     os.mkdir(output_dir)
     os.mkdir(os.path.join(output_dir, 'summary'))
     os.mkdir(os.path.join(output_dir, 'save_model'))
+    os.mkdir(os.path.join(output_dir, 'checkpoint'))
     hyper_params_['output_dir'] = output_dir
     shutil.copytree('utils', '{}/{}'.format(output_dir, 'utils'))
 
@@ -133,7 +133,6 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
 
         output = train_model(inputs)
 
-        loss = 0
         sum_loss = 0
         if isinstance(loss_fn, dict):
             if it == 1:
@@ -154,7 +153,6 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
         loss.backward()
         optimizer.step()
 
-        evaluation = 0
         if isinstance(eval_fn, dict):
             if it == 1:
                 for k, _ in eval_fn.items():
@@ -184,8 +182,8 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
     scheduler.step()
 
     training_dict = {
-        'training_loss_mean': training_loss_mean,
-        'training_evaluation_mean': training_eval_mean,
+        'loss_mean': training_loss_mean,
+        'evaluation_mean': training_eval_mean,
     }
     return training_loss_mean, training_eval_mean, training_dict
 
@@ -209,7 +207,6 @@ def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn):
         output = valid_model(inputs)
         target = target.to(Device)
 
-        loss = 0
         if isinstance(loss_fn, dict):
             if it == 1:
                 for k, _ in loss_fn.items():
@@ -225,7 +222,6 @@ def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn):
             valid_loss['validation_loss'] = loss.item()
             valid_loss_sum['validation_loss_mean'] += loss.item()
 
-        evaluation = 0
         if isinstance(eval_fn, dict):
             if it == 1:
                 for k, _ in eval_fn.items():
@@ -251,10 +247,9 @@ def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn):
         print(valid_loss_mean)
         print(valid_eval_mean)
         print("-" * 80)
-        print('=' * 80)
     valid_dict = {
-        'validation_loss_mean': valid_loss_mean,
-        'validation_evaluation_mean': valid_eval_mean
+        'loss_mean': valid_loss_mean,
+        'evaluation_mean': valid_eval_mean
     }
 
     return valid_loss_mean, valid_eval_mean, valid_dict
@@ -278,9 +273,8 @@ def train(training_model, optimizer, loss_fn, eval_fn,
     training_model = training_model.to(Device)
 
     def train_process(B_comet, experiment_comet):
-        train_eval_list = np.array([], dtype=float)
-        val_eval_list = np.array([], dtype=float)
-        for epoch in range(epochs):
+
+        for epoch in range(1, epochs + 1):
 
             print(f'Epoch {epoch}/{epochs - 1}')
             print('-' * 10)
@@ -296,14 +290,22 @@ def train(training_model, optimizer, loss_fn, eval_fn,
                 experiment_comet.log_metrics(train_dict, step=epoch)
                 experiment_comet.log_metrics(valid_dict, step=epoch)
 
-            print('Epoch: {}, \n Mean Training Loss:{}, Mean Validation Loss: {}, \n'
+            print('Epoch: {}, \n Mean Training Loss:{}, \n Mean Validation Loss: {}, \n'
                   'Mean Training evaluation:{}, \nMean Validation evaluation:{} '
                   .format(epoch, train_loss, val_loss, train_evaluation, val_evaluation))
 
             if val_evaluation['eval_function_psnr'] > threshold:
                 torch.save(training_model.state_dict(),
                            os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
-
+            if epoch == epochs:
+                torch.save({
+                    "epoch": epoch,
+                    "model_state_dict": training_model.state_dict(),
+                    "loss_fn": loss_fn,
+                    "eval_fn": eval_fn,
+                    "lr_schedule_state_dict": scheduler.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict()
+                }, os.path.join(output_dir, 'checkpoint', str(epoch)))
     if not comet:
         train_process(comet, experiment)
     else:

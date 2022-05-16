@@ -4,18 +4,18 @@
 # @Email   : csu1704liuye@163.com | sy2113205@buaa.edu.cn
 # @File    : main.py
 # @Software: PyCharm
+import numpy as np
 
 import torchsummary
 import torchmetrics
 import torch.optim as optim
 
-
 from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from train import *
-from comet_ml import Experiment
 from model import *
+from comet_ml import Experiment
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
@@ -31,9 +31,9 @@ hyper_params = {
     "down_scale"    : 0,
     "input_size"    : (3, 128, 128),
     "batch_size"    : 16,
-    "learning_rate" : 1e-4,
+    "learning_rate" : 1e-5,
     "epochs"        : 200,
-    "threshold"     : 22.5,
+    "threshold"     : 22,
     "src_path"      : 'E:/BJM/Super_Resolution'
 }
 
@@ -68,6 +68,7 @@ train_loader, val_loader, test_loader = get_data(down_scale=down_scale, batch_si
 # ===============================================================================
 
 model = ResNet(101)
+model.init_weights()
 # model = SRResNet()
 
 torchsummary.summary(model, input_size=input_size, batch_size=batch_size, device='cpu')
@@ -76,7 +77,11 @@ torchsummary.summary(model, input_size=input_size, batch_size=batch_size, device
 # =                                    Setting                                  =
 # ===============================================================================
 
-loss_function = nn.MSELoss()
+loss_function_mse = nn.MSELoss()
+loss_function_L1 = nn.L1Loss()
+loss_function = {'loss_function_mse': loss_function_mse,
+                 'loss_function_L1': loss_function_L1}
+
 eval_function_psnr = torchmetrics.functional.image.psnr.peak_signal_noise_ratio
 eval_function_ssim = torchmetrics.functional.image.ssim.structural_similarity_index_measure
 eval_function = {'eval_function_psnr': eval_function_psnr,
@@ -99,5 +104,5 @@ val_writer  =  SummaryWriter('{}/valer_{}'.format(os.path.join(output_dir, 'summ
 # ===============================================================================
 
 train(model, optimizer_ft, loss_function, eval_function,
-      val_loader, val_loader, Epochs, exp_lr_scheduler,
+      train_loader, val_loader, Epochs, exp_lr_scheduler,
       device, threshold, output_dir, train_writer, val_writer, experiment, train_comet)
