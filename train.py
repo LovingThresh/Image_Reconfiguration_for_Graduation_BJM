@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 # ==============================================================================
 
 
-def get_data(down_scale=0, batch_size=1):
+def get_data(down_scale=0, batch_size=1, re_size=(512, 512)):
     train_data_txt = './bjm_data/train.txt'
     val_data_txt = './bjm_data/valid.txt'
     test_data_txt = './bjm_data/test.txt'
@@ -34,16 +34,19 @@ def get_data(down_scale=0, batch_size=1):
 
     train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
                                                          raw_image_path=raw_train_dir,
+                                                         re_size=re_size,
                                                          data_txt=train_data_txt,
                                                          down_scale=down_scale)
 
     val_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_val_dir,
                                                        raw_image_path=raw_val_dir,
+                                                       re_size=re_size,
                                                        data_txt=val_data_txt,
                                                        down_scale=down_scale)
 
     test_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_test_dir,
                                                         raw_image_path=raw_test_dir,
+                                                        re_size=re_size,
                                                         data_txt=test_data_txt,
                                                         down_scale=down_scale)
 

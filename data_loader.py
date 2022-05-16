@@ -41,9 +41,11 @@ transform = A.Compose([
 
 
 class Super_Resolution_Dataset(Dataset):
-    def __init__(self, low_resolution_image_path, raw_image_path, data_txt, transformer=transform, down_scale=False):
+    def __init__(self, low_resolution_image_path, raw_image_path, re_size,
+                 data_txt, transformer=transform, down_scale=False):
         self.raw_image_path = raw_image_path
         self.low_resolution_image_path = low_resolution_image_path
+        self.re_size = re_size
         self.data_txt = data_txt
         self.transform = transformer
         self.down_scale = down_scale
@@ -56,13 +58,13 @@ class Super_Resolution_Dataset(Dataset):
     def __getitem__(self, item):
         self.raw_image = cv2.imread(os.path.join(self.raw_image_path, self.file_list[item]))
         self.raw_image = cv2.cvtColor(self.raw_image, cv2.COLOR_BGR2RGB)
-        self.raw_image = cv2.resize(self.raw_image, (128, 128))
+        self.raw_image = cv2.resize(self.raw_image, self.re_size)
         self.low_resolution_image = cv2.imread(os.path.join(self.low_resolution_image_path, self.file_list[item]))
         self.low_resolution_image = cv2.cvtColor(self.low_resolution_image, cv2.COLOR_BGR2RGB)
-        self.low_resolution_image = cv2.resize(self.low_resolution_image, (128, 128))
+        self.low_resolution_image = cv2.resize(self.low_resolution_image, self.re_size)
         if self.down_scale:
-            self.low_resolution_image = cv2.resize(self.low_resolution_image, (int(512 / 2 ** self.down_scale),
-                                                                               int(512 / 2 ** self.down_scale)))
+            self.low_resolution_image = cv2.resize(self.low_resolution_image, (int(self.re_size[0] / 2 ** self.down_scale),
+                                                                               int(self.re_size[1] / 2 ** self.down_scale)))
         if self.transform is None:
             pass
         else:

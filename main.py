@@ -44,6 +44,7 @@ src_path    =   hyper_params['src_path']
 down_scale  =   hyper_params['down_scale']
 batch_size  =   hyper_params['batch_size']
 input_size  =   hyper_params["input_size"]
+re_size     =   hyper_params["input_size"][1:]
 threshold   =   hyper_params['threshold']
 
 # ===============================================================================
@@ -61,7 +62,7 @@ if train_comet:
 # =                                     Data                                    =
 # ===============================================================================
 
-train_loader, val_loader, test_loader = get_data(down_scale=down_scale, batch_size=batch_size)
+train_loader, val_loader, test_loader = get_data(down_scale=down_scale, batch_size=batch_size, re_size=re_size)
 
 # ===============================================================================
 # =                                     Model                                   =

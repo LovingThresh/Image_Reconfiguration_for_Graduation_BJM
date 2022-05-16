@@ -1,10 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import logging
 
 import math
 import torch
 import torchvision
 import torch.nn as nn
+import torch.nn.init as init
 import torch.utils.checkpoint as cp
 
 from utils import constant_init, kaiming_init
@@ -344,7 +344,7 @@ class ConvolutionalBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=False, activation=None):
         """
         :param in_channels: number of input channels
-        :param out_channels: number of output channe;s
+        :param out_channels: number of output channels
         :param kernel_size: kernel size
         :param stride: stride
         :param batch_norm: include a BN layer?
@@ -485,7 +485,7 @@ class SRResNet(nn.Module):
 
         # A sequence of n_blocks residual blocks, each containing a skip-connection across the block
         self.residual_blocks = nn.Sequential(
-            *[ResidualBlock(kernel_size=small_kernel_size, n_channels=n_channels) for i in range(n_blocks)])
+            *[ResidualBlock(kernel_size=small_kernel_size, n_channels=n_channels) for _ in range(n_blocks)])
 
         # Another convolutional block
         self.conv_block2 = ConvolutionalBlock(in_channels=n_channels, out_channels=n_channels,
@@ -495,7 +495,7 @@ class SRResNet(nn.Module):
         # Upscaling is done by sub-pixel convolution, with each such block upscaling by a factor of 2
         n_subpixel_convolution_blocks = int(math.log2(scaling_factor))
         self.subpixel_convolutional_blocks = nn.Sequential(
-            *[SubPixelConvolutionalBlock(kernel_size=small_kernel_size, n_channels=n_channels, scaling_factor=2) for i
+            *[SubPixelConvolutionalBlock(kernel_size=small_kernel_size, n_channels=n_channels, scaling_factor=2) for _
               in range(n_subpixel_convolution_blocks)])
 
         # The last convolutional block
