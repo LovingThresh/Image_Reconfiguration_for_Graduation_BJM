@@ -65,7 +65,7 @@ if train_comet:
 # =                                     Data                                    =
 # ===============================================================================
 
-train_loader, val_loader, test_loader = get_data(down_scale=down_scale, batch_size=batch_size, re_size=re_size)
+train_loader, val_loader, test_loader = get_SR_data(down_scale=down_scale, batch_size=batch_size, re_size=re_size)
 
 # ===============================================================================
 # =                                     Model                                   =

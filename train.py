@@ -17,20 +17,30 @@ from torch.utils.data import DataLoader
 # =                                 data                                       =
 # ==============================================================================
 
+train_data_txt    = 'bjm_data/train.txt'
+val_data_txt      = 'bjm_data/valid.txt'
+test_data_txt     = 'bjm_data/test.txt'
 
-def get_data(down_scale=0, batch_size=1, re_size=(512, 512)):
-    train_data_txt = './bjm_data/train.txt'
-    val_data_txt = './bjm_data/valid.txt'
-    test_data_txt = './bjm_data/test.txt'
+low_rs_train_dir  = 'bjm_data/bicubic/train'
+raw_train_dir     = 'bjm_data/raw_image/train'
 
-    low_rs_train_dir = 'bjm_data/bicubic/train'
-    raw_train_dir = 'bjm_data/raw_image/train'
+low_rs_val_dir    = 'bjm_data/bicubic/valid'
+raw_val_dir       = 'bjm_data/raw_image/valid'
 
-    low_rs_val_dir = 'bjm_data/bicubic/valid'
-    raw_val_dir = 'bjm_data/raw_image/valid'
+low_rs_test_dir   = 'bjm_data/bicubic/test'
+raw_test_dir      = 'bjm_data/raw_image/test'
 
-    low_rs_test_dir = 'bjm_data/bicubic/test'
-    raw_test_dir = 'bjm_data/raw_image/test'
+inpaint_train_dir = 'bjm_data/inpaint/train'
+mask_train_dir    = 'bjm_data/mask/train'
+
+inpaint_val_dir = 'bjm_data/inpaint/valid'
+mask_val_dir    = 'bjm_data/mask/valid'
+
+inpaint_test_dir = 'bjm_data/inpaint/test'
+mask_test_dir    = 'bjm_data/mask/test'
+
+
+def get_SR_data(down_scale=0, batch_size=1, re_size=(512, 512)):
 
     train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
                                                          raw_image_path=raw_train_dir,
@@ -58,6 +68,31 @@ def get_data(down_scale=0, batch_size=1, re_size=(512, 512)):
 
     return Train_loader, Val_loader, Test_loader
 
+
+def get_IR_data(batch_size=1):
+
+    train_dataset = data_loader.Image_Reconstruction_Dataset(defective_image_path=inpaint_train_dir,
+                                                             defective_mask_path=mask_train_dir,
+                                                             raw_image_path=raw_train_dir,
+                                                             data_txt=train_data_txt)
+
+    val_dataset = data_loader.Image_Reconstruction_Dataset(defective_image_path=inpaint_val_dir,
+                                                           defective_mask_path=mask_val_dir,
+                                                           raw_image_path=raw_val_dir,
+                                                           data_txt=val_data_txt)
+
+    test_dataset = data_loader.Image_Reconstruction_Dataset(defective_image_path=inpaint_test_dir,
+                                                            defective_mask_path=mask_test_dir,
+                                                            raw_image_path=raw_test_dir,
+                                                            data_txt=test_data_txt)
+
+    # when using weightedRandomSampler, it is already balanced random, so DO NOT shuffle again
+
+    Train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    Val_loader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
+    Test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+
+    return Train_loader, Val_loader, Test_loader
 
 # ==============================================================================
 # =                           copy & upload                                    =

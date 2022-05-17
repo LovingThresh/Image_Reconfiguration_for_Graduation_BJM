@@ -17,12 +17,8 @@ import albumentations as A
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-train_label_path = './bjm_data/raw_image/train'
-val_label_path = './bjm_data/raw_image/valid'
-test_label_path = './bjm_data/raw_image/test'
 
-
-def get_txt_from_directory():
+def get_txt_from_directory(train_label_path, val_label_path, test_label_path):
     for file_path, text in zip((train_label_path, val_label_path, test_label_path), ('train', 'valid', 'test')):
         files = os.listdir(file_path)
         with open('./bjm_data/{}.txt'.format(text), 'w') as f:
@@ -111,3 +107,5 @@ class Image_Reconstruction_Dataset(Dataset):
                 transforms.ToTensor()(self.defective_mask)
 
         return self.defective_image, self.defective_mask, self.raw_image
+
+
