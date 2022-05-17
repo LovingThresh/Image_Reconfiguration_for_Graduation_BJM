@@ -216,6 +216,7 @@ class ResNet(nn.Module):
                  out_indices=(0, 1, 2, 3),
                  style='pytorch',
                  frozen_stages=-1,
+                 double_input=False,
                  bn_eval=True,
                  bn_frozen=False,
                  with_cp=False):
@@ -231,13 +232,17 @@ class ResNet(nn.Module):
         self.out_indices = out_indices
         self.style = style
         self.frozen_stages = frozen_stages
+        self.double_input = double_input
         self.bn_eval = bn_eval
         self.bn_frozen = bn_frozen
         self.with_cp = with_cp
 
         self.inplanes = 64
+        self.init_channel = 3
+        if self.double_input:
+            self.init_channel = 3 + 1
         self.conv1 = nn.Conv2d(
-            3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.init_channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -289,6 +294,11 @@ class ResNet(nn.Module):
                 constant_init(m, 1)
 
     def forward(self, x):
+        mask = 0
+        input_x = 0
+        if self.double_input:
+            mask = x[:, 3:4, :, :]
+            input_x = x[:, :3, :, :]
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -309,6 +319,8 @@ class ResNet(nn.Module):
         x = self.cbam_2(x)
         x = self.conv_T_final(x)
         x = self.tanh(x)
+        if self.double_input:
+            x = x * mask + input_x * (1 - mask)
 
         return x
 

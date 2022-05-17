@@ -14,6 +14,8 @@
 import os
 import cv2
 import albumentations as A
+import numpy as np
+import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
@@ -101,11 +103,10 @@ class Image_Reconstruction_Dataset(Dataset):
             self.transformed = self.transform(image=self.raw_image, masks=masks)
             self.raw_image = self.transformed['image']
             self.defective_image, self.defective_mask = self.transformed['masks']
-
+            self.defective_mask = np.ones_like(self.defective_mask) - self.defective_mask
             self.raw_image, self.defective_image, self.defective_mask = \
                 transforms.ToTensor()(self.raw_image), transforms.ToTensor()(self.defective_image), \
                 transforms.ToTensor()(self.defective_mask)
-
-        return self.defective_image, self.defective_mask, self.raw_image
-
-
+            self.defective_mask = self.defective_mask[0:1, :, :]
+            self.defective_image_mask = torch.cat([self.defective_image, self.defective_mask], dim=0)
+        return self.defective_image_mask, self.raw_image

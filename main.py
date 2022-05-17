@@ -29,13 +29,14 @@ train_comet = False
 hyper_params = {
     "ex_number"     : 'SRResnet_3090',
     "down_scale"    : 0,
-    "input_size"    : (3, 512, 512),
+    "input_size"    : (4, 512, 512),
     "batch_size"    : 12,
     "learning_rate" : 2e-5,
     "epochs"        : 1000,
     "threshold"     : 22,
-    "src_path"      : 'E:/BJM/Super_Resolution',
     "checkpoint"    : False,
+    "Img_Recon"     : True,
+    "src_path"      : 'E:/BJM/Super_Resolution',
     "check_path"    : 'E:/bjm/Super_Resolution/2022-05-16-09-44-25.670141/checkpoint/400.tar'
 }
 
@@ -49,6 +50,7 @@ input_size  =   hyper_params['input_size']
 re_size     =   hyper_params['input_size'][1:]
 threshold   =   hyper_params['threshold']
 Checkpoint  =   hyper_params['checkpoint']
+Img_Recon   =   hyper_params['Img_Recon']
 check_path  =   hyper_params['check_path']
 # ===============================================================================
 # =                                    Comet                                    =
@@ -65,13 +67,14 @@ if train_comet:
 # =                                     Data                                    =
 # ===============================================================================
 
-train_loader, val_loader, test_loader = get_SR_data(down_scale=down_scale, batch_size=batch_size, re_size=re_size)
+# train_loader, val_loader, test_loader = get_SR_data(down_scale=down_scale, batch_size=batch_size, re_size=re_size)
 
+train_loader, val_loader, test_loader = get_IR_data(batch_size=batch_size)
 # ===============================================================================
 # =                                     Model                                   =
 # ===============================================================================
 
-model = ResNet(101)
+model = ResNet(101, double_input=Img_Recon)
 model.init_weights()
 # model = SRResNet()
 
