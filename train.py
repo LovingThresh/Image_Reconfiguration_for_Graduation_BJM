@@ -116,7 +116,7 @@ def operate_dict_mean(ob_dict: dict, iter_num):
     return new_ob_dict
 
 
-def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, scheduler):
+def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, scheduler, epoch, Epochs):
     it = 0
     training_loss = {}
     training_evaluation = {}
@@ -174,10 +174,10 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
         training_loss_mean = operate_dict_mean(training_loss_sum, it)
         training_eval_mean = operate_dict_mean(training_eval_sum, it)
 
-        print("Iter:{}/{},".format(it, len(train_load)))
+        print("Epoch:{}/{}, Iter:{}/{},".format(epoch, Epochs, it, len(train_load)))
         print(training_loss)
         print(training_evaluation)
-        print("Iter:{}/{}_Mean,".format(it, len(train_load)))
+        print("Epoch:{}/{}, Iter:{}/{}_Mean,".format(epoch, Epochs, it, len(train_load)))
         print(training_loss_mean)
         print(training_eval_mean)
         print("-" * 80)
@@ -191,7 +191,7 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
     return training_loss_mean, training_eval_mean, training_dict
 
 
-def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn):
+def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn, epoch, Epochs):
     it = 0
     valid_loss = {}
     valid_evaluation = {}
@@ -243,10 +243,10 @@ def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn):
         valid_loss_mean = operate_dict_mean(valid_loss_sum, it)
         valid_eval_mean = operate_dict_mean(valid_eval_sum, it)
 
-        print("Iter:{}/{},".format(it, len(val_load)))
+        print("Epoch:{}/{}, Iter:{}/{},".format(epoch, Epochs, it, len(val_load)))
         print(valid_loss)
         print(valid_evaluation)
-        print("Iter:{}/{}_Mean,".format(it, len(val_load)))
+        print("Epoch:{}/{}, Iter:{}/{}_Mean,".format(epoch, Epochs, it, len(val_load)))
         print(valid_loss_mean)
         print(valid_eval_mean)
         print("-" * 80)
@@ -284,9 +284,10 @@ def train(training_model, optimizer, loss_fn, eval_fn,
 
             training_model.train(True)
             train_loss, train_evaluation, train_dict = train_epoch(training_model, train_load, Device, loss_fn, eval_fn,
-                                                                   optimizer, scheduler)
+                                                                   optimizer, scheduler, epoch, epochs)
             training_model.train(False)
-            val_loss, val_evaluation, valid_dict = val_epoch(training_model, val_load, Device, loss_fn, eval_fn)
+            val_loss, val_evaluation, valid_dict = val_epoch(training_model, val_load, Device, loss_fn, eval_fn,
+                                                             epoch, epochs)
             write_summary(train_writer_summary, valid_writer_summary, train_dict, valid_dict, step=epoch)
 
             if B_comet:
@@ -299,8 +300,9 @@ def train(training_model, optimizer, loss_fn, eval_fn,
 
             if val_evaluation['eval_function_psnr'] > threshold:
                 torch.save(training_model.state_dict(),
-                           os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}'.format(epoch, val_evaluation)))
-            if epoch == epochs:
+                           os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}.pt'.format(epoch, val_evaluation['eval_function_psnr'])))
+            if (epoch % 100) == 0:
+                save_checkpoint_path = os.path.join(output_dir, 'checkpoint')
                 torch.save({
                     "epoch": epoch,
                     "model_state_dict": training_model.state_dict(),
@@ -308,7 +310,7 @@ def train(training_model, optimizer, loss_fn, eval_fn,
                     "eval_fn": eval_fn,
                     "lr_schedule_state_dict": scheduler.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict()
-                }, os.path.join(output_dir, 'checkpoint', str(epoch)))
+                }, os.path.join(save_checkpoint_path,  str(epoch),  '.pth'))
     if not comet:
         train_process(comet, experiment)
     else:

@@ -27,15 +27,15 @@ torch.cuda.manual_seed_all(24)
 train_comet = False
 
 hyper_params = {
-    "ex_number"     : 'SRResnet_3080Ti',
+    "ex_number"     : 'SRResnet_3090',
     "down_scale"    : 0,
-    "input_size"    : (3, 128, 128),
-    "batch_size"    : 64,
+    "input_size"    : (3, 512, 512),
+    "batch_size"    : 12,
     "learning_rate" : 2e-5,
-    "epochs"        : 400,
+    "epochs"        : 1000,
     "threshold"     : 22,
     "src_path"      : 'E:/BJM/Super_Resolution',
-    "checkpoint"    : True,
+    "checkpoint"    : False,
     "check_path"    : 'E:/bjm/Super_Resolution/2022-05-16-09-44-25.670141/checkpoint/400.tar'
 }
 
