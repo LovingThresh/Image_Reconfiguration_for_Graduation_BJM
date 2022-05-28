@@ -11,6 +11,7 @@ import shutil
 import datetime
 import data_loader
 from torch.utils.data import DataLoader
+from utils.visualize import visualize_save_pair
 
 
 # ==============================================================================
@@ -115,12 +116,14 @@ def copy_and_upload(experiment_, hyper_params_, comet, src_path):
     output_dir = os.path.join(src_path, output_dir)
     os.mkdir(output_dir)
     os.mkdir(os.path.join(output_dir, 'summary'))
+    os.mkdir(os.path.join(output_dir, 'save_fig'))
     os.mkdir(os.path.join(output_dir, 'save_model'))
     os.mkdir(os.path.join(output_dir, 'checkpoint'))
     hyper_params_['output_dir'] = output_dir
     shutil.copytree('utils', '{}/{}'.format(output_dir, 'utils'))
 
     # 个人热代码
+    shutil.copy('main.py', output_dir)
     shutil.copy('model.py', output_dir)
     shutil.copy('train.py', output_dir)
     shutil.copy('data_loader.py', output_dir)
@@ -129,6 +132,7 @@ def copy_and_upload(experiment_, hyper_params_, comet, src_path):
     if comet:
         experiment_.log_asset_folder('utils', log_file_name=True)
 
+        experiment_.log_code('main.py')
         experiment_.log_code('model.py')
         experiment_.log_code('train.py')
         experiment_.log_code('data_loader.py')
@@ -312,9 +316,10 @@ def train(training_model, optimizer, loss_fn, eval_fn,
           train_load, val_load, epochs, scheduler, Device,
           threshold, output_dir, train_writer_summary, valid_writer_summary,
           experiment, comet=False, init_epoch=1):
+
     training_model = training_model.to(Device)
 
-    def train_process(B_comet, experiment_comet, init_epoch_num=init_epoch):
+    def train_process(B_comet, experiment_comet, threshold_value=threshold, init_epoch_num=init_epoch):
 
         for epoch in range(init_epoch_num, epochs + init_epoch_num):
 
@@ -337,9 +342,16 @@ def train(training_model, optimizer, loss_fn, eval_fn,
                   'Mean Training evaluation:{}, \nMean Validation evaluation:{} '
                   .format(epoch, train_loss, val_loss, train_evaluation, val_evaluation))
 
-            if val_evaluation['eval_function_psnr'] > threshold:
+            # 这一部分可以根据任务进行调整
+            if val_evaluation['eval_function_psnr'] > threshold_value:
                 torch.save(training_model.state_dict(),
                            os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}.pt'.format(epoch, val_evaluation['eval_function_psnr'])))
+                threshold_value = val_evaluation['eval_function_psnr']
+
+            # 验证阶段的结果可视化
+            save_path = os.path.join(output_dir, 'save_fig')
+            visualize_save_pair(training_model, val_load, save_path, epoch)
+
             if (epoch % 100) == 0:
                 save_checkpoint_path = os.path.join(output_dir, 'checkpoint')
                 torch.save({
