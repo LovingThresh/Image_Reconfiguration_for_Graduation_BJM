@@ -27,18 +27,18 @@ np.random.seed(24)
 torch.manual_seed(24)
 torch.cuda.manual_seed_all(24)
 
-train_comet = False
+train_comet = True
 
 hyper_params = {
-    "ex_number"     : 'EDSR_3090',
+    "ex_number"     : 'EDSR_3080Ti',
     "down_scale"    : 1,  # !! (2 ** down_scale)
     "raw_size"      : (3, 1024, 1024),
     "crop_size"     : (3, 256, 256),
     "input_size"    : (3, 128, 128),
     "batch_size"    : 16,
     "learning_rate" : 1e-4,
-    "epochs"        : 20,
-    "threshold"     : 22,
+    "epochs"        : 200,
+    "threshold"     : 28,
     "checkpoint"    : False,
     "Img_Recon"     : True,
     "src_path"      : 'E:/BJM/Super_Resolution',

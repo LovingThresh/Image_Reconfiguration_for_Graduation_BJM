@@ -120,6 +120,7 @@ def copy_and_upload(experiment_, hyper_params_, comet, src_path):
     os.mkdir(os.path.join(output_dir, 'save_model'))
     os.mkdir(os.path.join(output_dir, 'checkpoint'))
     hyper_params_['output_dir'] = output_dir
+    hyper_params_['ex_date'] = a[:10]
     shutil.copytree('utils', '{}/{}'.format(output_dir, 'utils'))
 
     # 个人热代码
@@ -130,6 +131,7 @@ def copy_and_upload(experiment_, hyper_params_, comet, src_path):
 
     # 云端上次源代码
     if comet:
+
         experiment_.log_asset_folder('utils', log_file_name=True)
 
         experiment_.log_code('main.py')
@@ -141,7 +143,7 @@ def copy_and_upload(experiment_, hyper_params_, comet, src_path):
         experiment_.set_name('{}-{}'.format(hyper_params_['ex_date'], hyper_params_['ex_number']))
 
     hyper_params_['output_dir'] = output_dir
-    hyper_params_['ex_date'] = a[:10]
+
     with open('{}/hyper_params.json'.format(output_dir), 'w') as fp:
         json.dump(hyper_params_, fp)
     return output_dir
@@ -157,6 +159,48 @@ def operate_dict_mean(ob_dict: dict, iter_num):
         new_ob_dict[k] = mean_dict(v)
 
     return new_ob_dict
+
+
+def calculate_loss(loss_fn, it, training_loss_sum, training_loss, output, target):
+    sum_loss = 0
+    if isinstance(loss_fn, dict):
+        if it == 1:
+            for k, _ in loss_fn.items():
+                training_loss_sum[k] = 0
+        for k, v in loss_fn.items():
+            loss = v(output, target)
+            sum_loss += loss
+            training_loss[k] = loss.item()
+            training_loss_sum[k] += loss.item()
+        loss = sum_loss
+    else:
+        if it == 1:
+            training_loss_sum['training_loss_mean'] = 0
+        loss = loss_fn(output, target)
+        training_loss['training_loss'] = loss.item()
+        training_loss_sum['training_loss_mean'] += loss.item()
+
+    return loss, training_loss_sum, training_loss
+
+
+def calculate_eval(eval_fn, it, training_eval_sum, training_evaluation, output, target):
+    evaluation = 0
+    if isinstance(eval_fn, dict):
+        if it == 1:
+            for k, _ in eval_fn.items():
+                training_eval_sum[k] = 0
+        for k, v in eval_fn.items():
+            evaluation = v(output, target)
+            training_evaluation[k] = evaluation.item()
+            training_eval_sum[k] += evaluation.item()
+    else:
+        if it == 1:
+            training_eval_sum['training_evaluation_mean'] = 0
+        evaluation = eval_fn(output * 255, target * 255)
+        training_evaluation['training_evaluation'] = evaluation.item()
+        training_eval_sum['training_evaluation_mean'] += evaluation.item()
+
+    return evaluation, training_eval_sum, training_evaluation
 
 
 def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, scheduler, epoch, Epochs):
@@ -179,40 +223,13 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
 
         output = train_model(inputs)
 
-        sum_loss = 0
-        if isinstance(loss_fn, dict):
-            if it == 1:
-                for k, _ in loss_fn.items():
-                    training_loss_sum[k] = 0
-            for k, v in loss_fn.items():
-                loss = v(output, target)
-                sum_loss += loss
-                training_loss[k] = loss.item()
-                training_loss_sum[k] += loss.item()
-            loss = sum_loss
-        else:
-            if it == 1:
-                training_loss_sum['training_loss_mean'] = 0
-            loss = loss_fn(output, target)
-            training_loss['training_loss'] = loss.item()
-            training_loss_sum['training_loss_mean'] += loss.item()
+        loss, training_loss_sum, training_loss = \
+            calculate_loss(loss_fn, it, training_loss_sum, training_loss, output, target)
         loss.backward()
         optimizer.step()
 
-        if isinstance(eval_fn, dict):
-            if it == 1:
-                for k, _ in eval_fn.items():
-                    training_eval_sum[k] = 0
-            for k, v in eval_fn.items():
-                evaluation = v(output, target)
-                training_evaluation[k] = evaluation.item()
-                training_eval_sum[k] += evaluation.item()
-        else:
-            if it == 1:
-                training_eval_sum['training_loss_mean'] = 0
-            evaluation = eval_fn(output * 255, target * 255)
-            training_evaluation['training_evaluation'] = evaluation.item()
-            training_eval_sum['training_evaluation_mean'] += evaluation.item()
+        evaluation, training_eval_sum, training_evaluation = \
+            calculate_eval(eval_fn, it, training_eval_sum, training_evaluation, output, target)
 
         training_loss_mean = operate_dict_mean(training_loss_sum, it)
         training_eval_mean = operate_dict_mean(training_eval_sum, it)
@@ -234,6 +251,102 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
     return training_loss_mean, training_eval_mean, training_dict
 
 
+def train_generator_epoch(train_model_G, train_model_D,
+                          train_load, Device,
+                          loss_fn_G, loss_fn_D,
+                          eval_fn_G, eval_fn_D,
+                          optimizer_G, optimizer_D,
+                          scheduler_G, scheduler_D, epoch, Epochs):
+    it = 0
+    label_size = 30
+    training_loss_D = {}
+    training_evaluation_D = {}
+
+    training_loss_sum_D = {}
+    training_eval_sum_D = {}
+
+    training_loss_mean_D = {}
+    training_eval_mean_D = {}
+
+    training_loss_G = {}
+    training_evaluation_G = {}
+
+    training_loss_sum_G = {}
+    training_eval_sum_G = {}
+
+    training_loss_mean_G = {}
+    training_eval_mean_G = {}
+
+    for batch in train_load:
+
+        it = it + 1
+        optimizer_D.zero_grad()
+        real_input, real_output = batch
+        real_input, real_output = real_input.to(Device), real_output.to(Device)
+        b_size = real_output.size(0)
+
+        # Real Training
+        real_label = torch.ones((b_size, 1, label_size, label_size), dtype=torch.float, device=Device)
+
+        real_predict = train_model_D(real_output)
+        loss_D_O, training_loss_sum_D, training_loss_D = \
+            calculate_loss(loss_fn_D, it, training_loss_sum_D, training_loss_D, real_predict, real_label)
+
+        # Fake Training
+        fake_label = torch.zeros((b_size, 1, label_size, label_size), dtype=torch.float, device=Device)
+        fake_predict = train_model_D(train_model_G(real_input))
+        loss_D_T, training_loss_sum_D, training_loss_D = \
+            calculate_loss(loss_fn_D, it, training_loss_sum_D, training_loss_D, fake_predict, fake_label)
+        evaluation_D, training_eval_sum_D, training_evaluation_D = \
+            calculate_eval(eval_fn_D, it, training_eval_sum_D, training_evaluation_D, fake_predict, fake_label)
+
+        loss_D = loss_D_O + loss_D_T
+        loss_D.backward()
+        optimizer_D.step()
+
+        optimizer_G.zero_grad()
+        real_label = torch.ones((b_size, 1, label_size, label_size), dtype=torch.float, device=Device)
+        gen_predict = train_model_G(real_input)
+        loss_G, training_loss_sum_G, training_loss_G = \
+            calculate_loss(loss_fn_G, it, training_loss_sum_G, training_loss_G, gen_predict, real_label)
+
+        evaluation_G, training_eval_sum_G, training_evaluation_G = \
+            calculate_eval(eval_fn_G, it, training_eval_sum_G, training_evaluation_G, gen_predict, real_output)
+
+        loss_G.backward()
+        optimizer_G.step()
+
+        training_loss_mean_D = operate_dict_mean(training_loss_sum_D, it)
+        training_eval_mean_D = operate_dict_mean(training_eval_sum_D, it)
+
+        training_loss_mean_G = operate_dict_mean(training_loss_sum_G, it)
+        training_eval_mean_G = operate_dict_mean(training_eval_sum_G, it)
+
+        print("Epoch:{}/{}, Iter:{}/{},".format(epoch, Epochs, it, len(train_load)))
+        print(training_loss_D)
+        print(training_evaluation_D)
+        print(training_loss_G)
+        print(training_evaluation_G)
+        print("Epoch:{}/{}, Iter:{}/{}_Mean,".format(epoch, Epochs, it, len(train_load)))
+        print(training_loss_mean_D)
+        print(training_eval_mean_D)
+        print(training_loss_mean_G)
+        print(training_eval_mean_G)
+        print("-" * 80)
+
+    scheduler_D.step()
+    scheduler_G.step()
+
+    training_dict = {
+        'loss_mean_D': training_loss_mean_D,
+        'evaluation_mean_D': training_eval_mean_D,
+        'loss_mean_G': training_loss_mean_G,
+        'evaluation_mean_G': training_eval_mean_G,
+
+    }
+    return training_loss_mean_D, training_eval_mean_D, training_loss_mean_G, training_eval_mean_G, training_dict
+
+
 def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn, epoch, Epochs):
     it = 0
     valid_loss = {}
@@ -253,35 +366,11 @@ def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn, epoch, Epochs):
         output = valid_model(inputs)
         target = target.to(Device)
 
-        if isinstance(loss_fn, dict):
-            if it == 1:
-                for k, _ in loss_fn.items():
-                    valid_loss_sum[k] = 0
-            for k, v in loss_fn.items():
-                loss = v(output, target)
-                valid_loss[k] = loss.item()
-                valid_loss_sum[k] += loss.item()
-        else:
-            if it == 1:
-                valid_loss_sum['validation_loss_mean'] = 0
-            loss = loss_fn(output, target)
-            valid_loss['validation_loss'] = loss.item()
-            valid_loss_sum['validation_loss_mean'] += loss.item()
+        loss, valid_loss_sum, valid_loss = \
+            calculate_loss(loss_fn, it, valid_loss_sum, valid_loss, output, target)
 
-        if isinstance(eval_fn, dict):
-            if it == 1:
-                for k, _ in eval_fn.items():
-                    valid_eval_sum[k] = 0
-            for k, v in eval_fn.items():
-                evaluation = v(output, target)
-                valid_evaluation[k] = evaluation.item()
-                valid_eval_sum[k] += evaluation.item()
-        else:
-            if it == 1:
-                valid_eval_sum['training_loss_mean'] = 0
-            evaluation = eval_fn(output * 255, target * 255)
-            valid_evaluation['validation_evaluation'] = evaluation.item()
-            valid_eval_sum['validation_evaluation_mean'] += evaluation.item()
+        evaluation, valid_eval_sum, valid_evaluation = \
+            calculate_eval(eval_fn, it, valid_eval_sum, valid_evaluation, output, target)
 
         valid_loss_mean = operate_dict_mean(valid_loss_sum, it)
         valid_eval_mean = operate_dict_mean(valid_eval_sum, it)
@@ -293,6 +382,7 @@ def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn, epoch, Epochs):
         print(valid_loss_mean)
         print(valid_eval_mean)
         print("-" * 80)
+
     valid_dict = {
         'loss_mean': valid_loss_mean,
         'evaluation_mean': valid_eval_mean
@@ -335,8 +425,10 @@ def train(training_model, optimizer, loss_fn, eval_fn,
             write_summary(train_writer_summary, valid_writer_summary, train_dict, valid_dict, step=epoch)
 
             if B_comet:
-                experiment_comet.log_metrics(train_dict, step=epoch)
-                experiment_comet.log_metrics(valid_dict, step=epoch)
+                for k, v in train_dict.items():
+                    experiment_comet.log_metrics(v, step=epoch)
+                for k, v in valid_dict.items():
+                    experiment_comet.log_metrics(v, step=epoch)
 
             print('Epoch: {}, \n Mean Training Loss:{}, \n Mean Validation Loss: {}, \n'
                   'Mean Training evaluation:{}, \nMean Validation evaluation:{} '
