@@ -6,7 +6,9 @@
 # @Software: PyCharm
 import mmcv
 import numpy as np
+import torchmetrics.functional
 from mmedit.models import MODELS
+from mmedit.models import LOSSES
 
 import torchsummary
 import torchmetrics
@@ -27,15 +29,15 @@ np.random.seed(24)
 torch.manual_seed(24)
 torch.cuda.manual_seed_all(24)
 
-train_comet = True
+train_comet = False
 
 hyper_params = {
     "ex_number"     : 'EDSR_3080Ti',
     "down_scale"    : 1,  # !! (2 ** down_scale)
     "raw_size"      : (3, 1024, 1024),
-    "crop_size"     : (3, 256, 256),
-    "input_size"    : (3, 128, 128),
-    "batch_size"    : 16,
+    "crop_size"     : (3, 128, 128),
+    "input_size"    : (3, 64, 64),
+    "batch_size"    : 8,
     "learning_rate" : 1e-4,
     "epochs"        : 200,
     "threshold"     : 28,
@@ -94,31 +96,71 @@ model = dict(
         rgb_std=[1.0, 1.0, 1.0])
 model = mmcv.build_from_cfg(model, MODELS)
 
+generator = dict(
+        type='RRDBNet',
+        in_channels=3,
+        out_channels=3,
+        mid_channels=64,
+        num_blocks=23,
+        growth_channels=32,
+        upscale_factor=scale)
+generator = mmcv.build_from_cfg(generator, MODELS)
+
+discriminator = dict(type='ModifiedVGG', in_channels=3, mid_channels=64)
+discriminator = mmcv.build_from_cfg(discriminator, MODELS)
+
+pixel_loss = dict(type='L1Loss', loss_weight=1, reduction='mean')
+pixel_loss = mmcv.build_from_cfg(pixel_loss, LOSSES)
+
+perceptual_loss = dict(
+    type='PerceptualLoss',
+    layer_weights={'34': 1.0},
+    vgg_type='vgg19',
+    perceptual_weight=1.0,
+    style_weight=0,
+    norm_img=False)
+perceptual_loss = mmcv.build_from_cfg(perceptual_loss, LOSSES)
+
+gan_loss = dict(
+    type='GANLoss',
+    gan_type='vanilla',
+    loss_weight=5e-1,
+    real_label_val=1.0,
+    fake_label_val=0)
+gan_loss = mmcv.build_from_cfg(gan_loss, LOSSES)
 
 # model = ResNet(101, double_input=Img_Recon)
 # model.init_weights()
 # model = SRResNet()
 
-torchsummary.summary(model, input_size=hyper_params['input_size'], batch_size=batch_size, device='cpu')
+# torchsummary.summary(model, input_size=hyper_params['input_size'], batch_size=batch_size, device='cpu')
 
 # ===============================================================================
 # =                                    Setting                                  =
 # ===============================================================================
 
 # loss_function_mse = nn.MSELoss()
-loss_function_L1 = nn.L1Loss()
-loss_function = loss_function_L1
-# loss_function = {'loss_function_mse': loss_function_mse,
-#                  'loss_function_L1': loss_function_L1}
+# loss_function_L1 = nn.L1Loss()
+# loss_function = loss_function_L1
+loss_function_D = {'loss_function_BCE': nn.BCEWithLogitsLoss()}
+
+loss_function_G_ = {'loss_function_gan': gan_loss}
+loss_function_G = {'loss_function_perceptual': perceptual_loss,
+                   'loss_function_l1': pixel_loss}
 
 eval_function_psnr = torchmetrics.functional.image.psnr.peak_signal_noise_ratio
 eval_function_ssim = torchmetrics.functional.image.ssim.structural_similarity_index_measure
-eval_function = {'eval_function_psnr': eval_function_psnr,
-                 'eval_function_ssim': eval_function_ssim}
+eval_function_mse = torchmetrics.functional.mean_squared_error
 
-optimizer_ft     = optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999))
+eval_function_D = {'eval_function_psnr': eval_function_mse}
+eval_function_G = {'eval_function_psnr': eval_function_psnr,
+                   'eval_function_ssim': eval_function_ssim}
 
-exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer_ft, int(Epochs / 10))
+optimizer_ft_D     = optim.AdamW(model.parameters(), lr=lr * 0.2, betas=(0.9, 0.999))
+optimizer_ft_G     = optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999))
+
+exp_lr_scheduler_D = lr_scheduler.CosineAnnealingLR(optimizer_ft_D, int(Epochs / 10))
+exp_lr_scheduler_G = lr_scheduler.CosineAnnealingLR(optimizer_ft_G, int(Epochs / 10))
 
 # ===============================================================================
 # =                                  Copy & Upload                              =
@@ -133,20 +175,26 @@ val_writer   =  SummaryWriter('{}/valer_{}'.format(os.path.join(output_dir, 'sum
 # ===============================================================================
 # =                                Checkpoint                                   =
 # ===============================================================================
-if Checkpoint:
-    checkpoint = torch.load(check_path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer_ft.load_state_dict(checkpoint['optimizer_state_dict'])
-    for state in optimizer_ft.state.values():
-        for k, v in state.items():
-            if isinstance(v, torch.Tensor):
-                state[k] = v.cuda()
-    exp_lr_scheduler.load_state_dict(checkpoint['lr_schedule_state_dict'])
+
+# if Checkpoint:
+#     checkpoint = torch.load(check_path)
+#     model.load_state_dict(checkpoint['model_state_dict'])
+#     optimizer_ft.load_state_dict(checkpoint['optimizer_state_dict'])
+#     for state in optimizer_ft.state.values():
+#         for k, v in state.items():
+#             if isinstance(v, torch.Tensor):
+#                 state[k] = v.cuda()
+#     exp_lr_scheduler.load_state_dict(checkpoint['lr_schedule_state_dict'])
 
 # ===============================================================================
 # =                                    Training                                 =
 # ===============================================================================
 
-train(model, optimizer_ft, loss_function, eval_function,
-      train_loader, val_loader, Epochs, exp_lr_scheduler,
-      device, threshold, output_dir, train_writer, val_writer, experiment, train_comet)
+# train(model, optimizer_ft, loss_function, eval_function,
+#       train_loader, val_loader, Epochs, exp_lr_scheduler,
+#       device, threshold, output_dir, train_writer, val_writer, experiment, train_comet)
+
+train_GAN(generator, discriminator, optimizer_ft_G, optimizer_ft_D,
+          loss_function_G_, loss_function_G, loss_function_D, exp_lr_scheduler_G, exp_lr_scheduler_D,
+          eval_function_G, eval_function_D, train_loader, val_loader, Epochs, device, threshold,
+          output_dir, train_writer, val_writer, experiment, train_comet)

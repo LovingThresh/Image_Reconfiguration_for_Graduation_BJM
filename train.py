@@ -13,36 +13,34 @@ import data_loader
 from torch.utils.data import DataLoader
 from utils.visualize import visualize_save_pair
 
-
 # ==============================================================================
 # =                                 data                                       =
 # ==============================================================================
 
-train_data_txt    = 'bjm_data/train.txt'
-val_data_txt      = 'bjm_data/valid.txt'
-test_data_txt     = 'bjm_data/test.txt'
+train_data_txt = 'bjm_data/train.txt'
+val_data_txt = 'bjm_data/valid.txt'
+test_data_txt = 'bjm_data/test.txt'
 
-low_rs_train_dir  = 'bjm_data/bicubic/train'
-raw_train_dir     = 'bjm_data/raw_image/archive_for_bjm/train'
+low_rs_train_dir = 'bjm_data/bicubic/train'
+raw_train_dir = 'bjm_data/raw_image/archive_for_bjm/train'
 
-low_rs_val_dir    = 'bjm_data/bicubic/valid'
-raw_val_dir       = 'bjm_data/raw_image/archive_for_bjm/valid'
+low_rs_val_dir = 'bjm_data/bicubic/valid'
+raw_val_dir = 'bjm_data/raw_image/archive_for_bjm/valid'
 
-low_rs_test_dir   = 'bjm_data/bicubic/test'
-raw_test_dir      = 'bjm_data/raw_image/archive_for_bjm/test'
+low_rs_test_dir = 'bjm_data/bicubic/test'
+raw_test_dir = 'bjm_data/raw_image/archive_for_bjm/test'
 
 inpaint_train_dir = 'bjm_data/inpaint/train'
-mask_train_dir    = 'bjm_data/mask/train'
+mask_train_dir = 'bjm_data/mask/train'
 
 inpaint_val_dir = 'bjm_data/inpaint/valid'
-mask_val_dir    = 'bjm_data/mask/valid'
+mask_val_dir = 'bjm_data/mask/valid'
 
 inpaint_test_dir = 'bjm_data/inpaint/test'
-mask_test_dir    = 'bjm_data/mask/test'
+mask_test_dir = 'bjm_data/mask/test'
 
 
 def get_SR_data(down_scale=0, batch_size=1, re_size=(512, 512), crop_size=False):
-
     train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
                                                          raw_image_path=raw_train_dir,
                                                          re_size=re_size,
@@ -74,7 +72,6 @@ def get_SR_data(down_scale=0, batch_size=1, re_size=(512, 512), crop_size=False)
 
 
 def get_IR_data(batch_size=1):
-
     train_dataset = data_loader.Image_Reconstruction_Dataset(defective_image_path=inpaint_train_dir,
                                                              defective_mask_path=mask_train_dir,
                                                              raw_image_path=raw_train_dir,
@@ -131,7 +128,6 @@ def copy_and_upload(experiment_, hyper_params_, comet, src_path):
 
     # 云端上次源代码
     if comet:
-
         experiment_.log_asset_folder('utils', log_file_name=True)
 
         experiment_.log_code('main.py')
@@ -169,6 +165,8 @@ def calculate_loss(loss_fn, it, training_loss_sum, training_loss, output, target
                 training_loss_sum[k] = 0
         for k, v in loss_fn.items():
             loss = v(output, target)
+            if type(loss) is tuple:
+                loss = loss[0]
             sum_loss += loss
             training_loss[k] = loss.item()
             training_loss_sum[k] += loss.item()
@@ -253,12 +251,12 @@ def train_epoch(train_model, train_load, Device, loss_fn, eval_fn, optimizer, sc
 
 def train_generator_epoch(train_model_G, train_model_D,
                           train_load, Device,
-                          loss_fn_G, loss_fn_D,
+                          loss_function_G_, loss_fn_G, loss_fn_D,
                           eval_fn_G, eval_fn_D,
                           optimizer_G, optimizer_D,
                           scheduler_G, scheduler_D, epoch, Epochs):
     it = 0
-    label_size = 30
+    label_size = 1
     training_loss_D = {}
     training_evaluation_D = {}
 
@@ -278,7 +276,6 @@ def train_generator_epoch(train_model_G, train_model_D,
     training_eval_mean_G = {}
 
     for batch in train_load:
-
         it = it + 1
         optimizer_D.zero_grad()
         real_input, real_output = batch
@@ -286,14 +283,14 @@ def train_generator_epoch(train_model_G, train_model_D,
         b_size = real_output.size(0)
 
         # Real Training
-        real_label = torch.ones((b_size, 1, label_size, label_size), dtype=torch.float, device=Device)
+        real_label = torch.ones((b_size, label_size), dtype=torch.float, device=Device)
 
         real_predict = train_model_D(real_output)
         loss_D_O, training_loss_sum_D, training_loss_D = \
             calculate_loss(loss_fn_D, it, training_loss_sum_D, training_loss_D, real_predict, real_label)
 
         # Fake Training
-        fake_label = torch.zeros((b_size, 1, label_size, label_size), dtype=torch.float, device=Device)
+        fake_label = torch.zeros((b_size, label_size), dtype=torch.float, device=Device)
         fake_predict = train_model_D(train_model_G(real_input))
         loss_D_T, training_loss_sum_D, training_loss_D = \
             calculate_loss(loss_fn_D, it, training_loss_sum_D, training_loss_D, fake_predict, fake_label)
@@ -304,14 +301,18 @@ def train_generator_epoch(train_model_G, train_model_D,
         loss_D.backward()
         optimizer_D.step()
 
+        # Generator Training
         optimizer_G.zero_grad()
-        real_label = torch.ones((b_size, 1, label_size, label_size), dtype=torch.float, device=Device)
         gen_predict = train_model_G(real_input)
+        loss_G_, training_loss_sum_G, training_loss_G = \
+            calculate_loss(loss_function_G_, it, training_loss_sum_G, training_loss_G, gen_predict, 1)
         loss_G, training_loss_sum_G, training_loss_G = \
-            calculate_loss(loss_fn_G, it, training_loss_sum_G, training_loss_G, gen_predict, real_label)
+            calculate_loss(loss_fn_G, it, training_loss_sum_G, training_loss_G, gen_predict, real_output)
 
         evaluation_G, training_eval_sum_G, training_evaluation_G = \
             calculate_eval(eval_fn_G, it, training_eval_sum_G, training_evaluation_G, gen_predict, real_output)
+
+        loss_G = loss_G_ + loss_G
 
         loss_G.backward()
         optimizer_G.step()
@@ -391,6 +392,93 @@ def val_epoch(valid_model, val_load, Device, loss_fn, eval_fn, epoch, Epochs):
     return valid_loss_mean, valid_eval_mean, valid_dict
 
 
+def val_generator_epoch(train_model_G, train_model_D,
+                        val_load, Device,
+                        loss_function_G_, loss_fn_G, loss_fn_D,
+                        eval_fn_G, eval_fn_D,
+                        epoch, Epochs):
+    it = 0
+    label_size = 1
+    training_loss_D = {}
+    training_evaluation_D = {}
+
+    training_loss_sum_D = {}
+    training_eval_sum_D = {}
+
+    training_loss_mean_D = {}
+    training_eval_mean_D = {}
+
+    training_loss_G = {}
+    training_evaluation_G = {}
+
+    training_loss_sum_G = {}
+    training_eval_sum_G = {}
+
+    training_loss_mean_G = {}
+    training_eval_mean_G = {}
+
+    for batch in val_load:
+        it = it + 1
+
+        real_input, real_output = batch
+        real_input, real_output = real_input.to(Device), real_output.to(Device)
+        b_size = real_output.size(0)
+
+        # Real Training
+        real_label = torch.ones((b_size, label_size), dtype=torch.float, device=Device)
+
+        real_predict = train_model_D(real_output)
+        loss_D_O, training_loss_sum_D, training_loss_D = \
+            calculate_loss(loss_fn_D, it, training_loss_sum_D, training_loss_D, real_predict, real_label)
+
+        # Fake Training
+        fake_label = torch.zeros((b_size, label_size), dtype=torch.float, device=Device)
+        fake_predict = train_model_D(train_model_G(real_input))
+        loss_D_T, training_loss_sum_D, training_loss_D = \
+            calculate_loss(loss_fn_D, it, training_loss_sum_D, training_loss_D, fake_predict, fake_label)
+        evaluation_D, training_eval_sum_D, training_evaluation_D = \
+            calculate_eval(eval_fn_D, it, training_eval_sum_D, training_evaluation_D, fake_predict, fake_label)
+
+        # Generator Training
+        gen_predict = train_model_G(real_input)
+        loss_G_, training_loss_sum_G, training_loss_G = \
+            calculate_loss(loss_function_G_, it, training_loss_sum_G, training_loss_G, gen_predict, 1)
+
+        loss_G, training_loss_sum_G, training_loss_G = \
+            calculate_loss(loss_fn_G, it, training_loss_sum_G, training_loss_G, gen_predict, real_output)
+        loss_G = loss_G_ + loss_G
+
+        evaluation_G, training_eval_sum_G, training_evaluation_G = \
+            calculate_eval(eval_fn_G, it, training_eval_sum_G, training_evaluation_G, gen_predict, real_output)
+
+        training_loss_mean_D = operate_dict_mean(training_loss_sum_D, it)
+        training_eval_mean_D = operate_dict_mean(training_eval_sum_D, it)
+
+        training_loss_mean_G = operate_dict_mean(training_loss_sum_G, it)
+        training_eval_mean_G = operate_dict_mean(training_eval_sum_G, it)
+
+        print("Epoch:{}/{}, Iter:{}/{},".format(epoch, Epochs, it, len(val_load)))
+        print(training_loss_D)
+        print(training_evaluation_D)
+        print(training_loss_G)
+        print(training_evaluation_G)
+        print("Epoch:{}/{}, Iter:{}/{}_Mean,".format(epoch, Epochs, it, len(val_load)))
+        print(training_loss_mean_D)
+        print(training_eval_mean_D)
+        print(training_loss_mean_G)
+        print(training_eval_mean_G)
+        print("-" * 80)
+
+    training_dict = {
+        'loss_mean_D': training_loss_mean_D,
+        'evaluation_mean_D': training_eval_mean_D,
+        'loss_mean_G': training_loss_mean_G,
+        'evaluation_mean_G': training_eval_mean_G,
+
+    }
+    return training_loss_mean_D, training_eval_mean_D, training_loss_mean_G, training_eval_mean_G, training_dict
+
+
 def write_dict(dict_to_write, writer, step):
     for k, v in dict_to_write.items():
         for i, j in v.items():
@@ -406,7 +494,6 @@ def train(training_model, optimizer, loss_fn, eval_fn,
           train_load, val_load, epochs, scheduler, Device,
           threshold, output_dir, train_writer_summary, valid_writer_summary,
           experiment, comet=False, init_epoch=1):
-
     training_model = training_model.to(Device)
 
     def train_process(B_comet, experiment_comet, threshold_value=threshold, init_epoch_num=init_epoch):
@@ -437,7 +524,8 @@ def train(training_model, optimizer, loss_fn, eval_fn,
             # 这一部分可以根据任务进行调整
             if val_evaluation['eval_function_psnr'] > threshold_value:
                 torch.save(training_model.state_dict(),
-                           os.path.join(output_dir, 'save_model', 'Epoch_{}_eval_{}.pt'.format(epoch, val_evaluation['eval_function_psnr'])))
+                           os.path.join(output_dir, 'save_model',
+                                        'Epoch_{}_eval_{}.pt'.format(epoch, val_evaluation['eval_function_psnr'])))
                 threshold_value = val_evaluation['eval_function_psnr']
 
             # 验证阶段的结果可视化
@@ -453,7 +541,88 @@ def train(training_model, optimizer, loss_fn, eval_fn,
                     "eval_fn": eval_fn,
                     "lr_schedule_state_dict": scheduler.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict()
-                }, os.path.join(save_checkpoint_path,  str(epoch),  '.pth'))
+                }, os.path.join(save_checkpoint_path, str(epoch), '.pth'))
+
+    if not comet:
+        train_process(comet, experiment)
+    else:
+        with experiment.train():
+            train_process(comet, experiment)
+
+
+def train_GAN(training_model_G, training_model_D,
+              optimizer_G, optimizer_D, loss_function_G_, loss_fn_G, loss_fn_D,
+              scheduler_G, scheduler_D, eval_fn_G, eval_fn_D,
+              train_load, val_load, epochs, Device,
+              threshold, output_dir, train_writer_summary, valid_writer_summary,
+              experiment, comet=False, init_epoch=1):
+    training_model_G = training_model_G.to(Device)
+    training_model_D = training_model_D.to(Device)
+
+    def train_process(B_comet, experiment_comet, threshold_value=threshold, init_epoch_num=init_epoch):
+
+        for epoch in range(init_epoch_num, epochs + init_epoch_num):
+
+            print(f'Epoch {epoch}/{epochs - 1}')
+            print('-' * 10)
+
+            training_model_G.train(True)
+            training_model_D.train(True)
+            train_loss_D, train_eval_D, train_loss_G, train_eval_G, train_dict = \
+                train_generator_epoch(training_model_G, training_model_D,
+                                      train_load, Device, loss_function_G_, loss_fn_G, loss_fn_D,
+                                      eval_fn_G, eval_fn_D, optimizer_G,
+                                      optimizer_D, scheduler_G, scheduler_D,
+                                      epoch, epochs)
+
+            training_model_G.train(False)
+            training_model_D.train(False)
+            val_loss_D, val_eval_D, val_loss_G, val_eval_G, valid_dict = \
+                val_generator_epoch(training_model_G, training_model_D,
+                                    val_load, Device, loss_function_G_, loss_fn_G, loss_fn_D,
+                                    eval_fn_G, eval_fn_D, epoch, epochs)
+            write_summary(train_writer_summary, valid_writer_summary, train_dict, valid_dict, step=epoch)
+
+            if B_comet:
+                for k, v in train_dict.items():
+                    experiment_comet.log_metrics(v, step=epoch)
+                for k, v in valid_dict.items():
+                    experiment_comet.log_metrics(v, step=epoch)
+
+            print('Epoch: {}, \n '
+                  'Mean Training Loss D:{}, \n '
+                  'Mean Training Loss G:{}, \n '
+                  'Mean Validation Loss D: {}, \n'
+                  'Mean Validation Loss G:{}, \n '
+                  'Mean Training evaluation D:{}, \n'
+                  'Mean Training evaluation G:{}, \n'
+                  'Mean Validation evaluation D:{}, \n'
+                  'Mean Validation evaluation G:{} '
+                  .format(epoch, train_loss_D, train_loss_G, val_loss_D, val_loss_G,
+                          train_eval_D, train_eval_G, val_eval_D, val_eval_G))
+
+            # 这一部分可以根据任务进行调整
+            if val_eval_G['eval_function_psnr'] > threshold_value:
+                torch.save(training_model_G.state_dict(),
+                           os.path.join(output_dir, 'save_model',
+                                        'Epoch_{}_eval_{}.pt'.format(epoch, val_eval_G['eval_function_psnr'])))
+                threshold_value = val_eval_G['eval_function_psnr']
+
+            # 验证阶段的结果可视化
+            save_path = os.path.join(output_dir, 'save_fig')
+            visualize_save_pair(training_model_G, val_load, save_path, epoch)
+
+            if (epoch % 100) == 0:
+                save_checkpoint_path = os.path.join(output_dir, 'checkpoint')
+                torch.save({
+                    "epoch": epoch,
+                    "model_state_dict": [training_model_G.state_dict(), training_model_D.state_dict()],
+                    "loss_fn": [loss_fn_D, loss_fn_G],
+                    "eval_fn": [eval_fn_D, eval_fn_G],
+                    "lr_schedule_state_dict": [scheduler_D.state_dict(), scheduler_G.state_dict()],
+                    "optimizer_state_dict": [optimizer_D.state_dict(), optimizer_G.state_dict()]
+                }, os.path.join(save_checkpoint_path, str(epoch), '.pth'))
+
     if not comet:
         train_process(comet, experiment)
     else:

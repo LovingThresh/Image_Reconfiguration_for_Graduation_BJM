@@ -33,7 +33,7 @@ transform = A.Compose([
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
     A.RandomRotate90(p=0.5),
-    A.RandomCrop(256, 256),
+    A.RandomCrop(128, 128),
 ])
 
 
