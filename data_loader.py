@@ -33,17 +33,17 @@ transform = A.Compose([
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
     A.RandomRotate90(p=0.5),
-    A.RandomBrightnessContrast(p=0.2),
-    A.ColorJitter(p=0.2)
+    A.RandomCrop(256, 256),
 ])
 
 
 class Super_Resolution_Dataset(Dataset):
     def __init__(self, low_resolution_image_path, raw_image_path, re_size,
-                 data_txt, transformer=transform, down_scale=False):
+                 data_txt, transformer=transform, down_scale=False, crop_size=False):
         self.raw_image_path = raw_image_path
         self.low_resolution_image_path = low_resolution_image_path
         self.re_size = re_size
+        self.crop_size = crop_size
         self.data_txt = data_txt
         self.transform = transformer
         self.down_scale = down_scale
@@ -60,16 +60,21 @@ class Super_Resolution_Dataset(Dataset):
         self.low_resolution_image = cv2.imread(os.path.join(self.low_resolution_image_path, self.file_list[item]))
         self.low_resolution_image = cv2.cvtColor(self.low_resolution_image, cv2.COLOR_BGR2RGB)
         self.low_resolution_image = cv2.resize(self.low_resolution_image, self.re_size)
-        if self.down_scale:
-            self.low_resolution_image = cv2.resize(self.low_resolution_image, (int(self.re_size[0] / 2 ** self.down_scale),
-                                                                               int(self.re_size[1] / 2 ** self.down_scale)))
+
         if self.transform is None:
             pass
         else:
             self.transformed = self.transform(image=self.raw_image, mask=self.low_resolution_image)
             self.raw_image, self.low_resolution_image = self.transformed['image'], self.transformed['mask']
-            self.raw_image, self.low_resolution_image = \
-                transforms.ToTensor()(self.raw_image), transforms.ToTensor()(self.low_resolution_image)
+
+        if self.down_scale:
+            if self.crop_size:
+                self.re_size = self.crop_size
+            self.low_resolution_image = cv2.resize(self.low_resolution_image, (int(self.re_size[0] / 2 ** self.down_scale),
+                                                                               int(self.re_size[1] / 2 ** self.down_scale)))
+
+        self.raw_image, self.low_resolution_image = \
+            transforms.ToTensor()(self.raw_image), transforms.ToTensor()(self.low_resolution_image)
 
         return self.low_resolution_image, self.raw_image
 

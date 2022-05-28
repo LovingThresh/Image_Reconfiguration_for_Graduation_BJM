@@ -22,13 +22,13 @@ val_data_txt      = 'bjm_data/valid.txt'
 test_data_txt     = 'bjm_data/test.txt'
 
 low_rs_train_dir  = 'bjm_data/bicubic/train'
-raw_train_dir     = 'bjm_data/raw_image/train'
+raw_train_dir     = 'bjm_data/raw_image/archive_for_bjm/train'
 
 low_rs_val_dir    = 'bjm_data/bicubic/valid'
-raw_val_dir       = 'bjm_data/raw_image/valid'
+raw_val_dir       = 'bjm_data/raw_image/archive_for_bjm/valid'
 
 low_rs_test_dir   = 'bjm_data/bicubic/test'
-raw_test_dir      = 'bjm_data/raw_image/test'
+raw_test_dir      = 'bjm_data/raw_image/archive_for_bjm/test'
 
 inpaint_train_dir = 'bjm_data/inpaint/train'
 mask_train_dir    = 'bjm_data/mask/train'
@@ -40,25 +40,28 @@ inpaint_test_dir = 'bjm_data/inpaint/test'
 mask_test_dir    = 'bjm_data/mask/test'
 
 
-def get_SR_data(down_scale=0, batch_size=1, re_size=(512, 512)):
+def get_SR_data(down_scale=0, batch_size=1, re_size=(512, 512), crop_size=False):
 
     train_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_train_dir,
                                                          raw_image_path=raw_train_dir,
                                                          re_size=re_size,
                                                          data_txt=train_data_txt,
-                                                         down_scale=down_scale)
+                                                         down_scale=down_scale,
+                                                         crop_size=crop_size)
 
     val_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_val_dir,
                                                        raw_image_path=raw_val_dir,
                                                        re_size=re_size,
                                                        data_txt=val_data_txt,
-                                                       down_scale=down_scale)
+                                                       down_scale=down_scale,
+                                                       crop_size=crop_size)
 
     test_dataset = data_loader.Super_Resolution_Dataset(low_resolution_image_path=low_rs_test_dir,
                                                         raw_image_path=raw_test_dir,
                                                         re_size=re_size,
                                                         data_txt=test_data_txt,
-                                                        down_scale=down_scale)
+                                                        down_scale=down_scale,
+                                                        crop_size=crop_size)
 
     # when using weightedRandomSampler, it is already balanced random, so DO NOT shuffle again
 

@@ -4,7 +4,9 @@
 # @Email   : csu1704liuye@163.com | sy2113205@buaa.edu.cn
 # @File    : main.py
 # @Software: PyCharm
+import mmcv
 import numpy as np
+from mmedit.models import MODELS
 
 import torchsummary
 import torchmetrics
@@ -16,6 +18,7 @@ from torch.utils.tensorboard import SummaryWriter
 from train import *
 from model import *
 from comet_ml import Experiment
+from utils.visualize import visualize_pair
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
@@ -27,12 +30,14 @@ torch.cuda.manual_seed_all(24)
 train_comet = False
 
 hyper_params = {
-    "ex_number"     : 'SRResnet_3090',
-    "down_scale"    : 0,
-    "input_size"    : (4, 512, 512),
-    "batch_size"    : 12,
-    "learning_rate" : 2e-5,
-    "epochs"        : 1000,
+    "ex_number"     : 'EDSR_3090',
+    "down_scale"    : 1,  # !! (2 ** down_scale)
+    "raw_size"      : (3, 1024, 1024),
+    "crop_size"     : (3, 256, 256),
+    "input_size"    : (3, 128, 128),
+    "batch_size"    : 16,
+    "learning_rate" : 1e-4,
+    "epochs"        : 20,
     "threshold"     : 22,
     "checkpoint"    : False,
     "Img_Recon"     : True,
@@ -46,8 +51,9 @@ Epochs      =   hyper_params['epochs']
 src_path    =   hyper_params['src_path']
 down_scale  =   hyper_params['down_scale']
 batch_size  =   hyper_params['batch_size']
-input_size  =   hyper_params['input_size']
-re_size     =   hyper_params['input_size'][1:]
+raw_size    =   hyper_params['raw_size'][1:]
+crop_size   =   hyper_params['crop_size'][1:]
+input_size  =   hyper_params['input_size'][1:]
 threshold   =   hyper_params['threshold']
 Checkpoint  =   hyper_params['checkpoint']
 Img_Recon   =   hyper_params['Img_Recon']
@@ -67,34 +73,51 @@ if train_comet:
 # =                                     Data                                    =
 # ===============================================================================
 
-# train_loader, val_loader, test_loader = get_SR_data(down_scale=down_scale, batch_size=batch_size, re_size=re_size)
+train_loader, val_loader, test_loader = get_SR_data(down_scale=down_scale, batch_size=batch_size, re_size=raw_size,
+                                                    crop_size=crop_size)
 
-train_loader, val_loader, test_loader = get_IR_data(batch_size=batch_size)
+visualize_pair(train_loader, input_size=input_size, crop_size=crop_size)
+
 # ===============================================================================
 # =                                     Model                                   =
 # ===============================================================================
+scale = 2 ** hyper_params['down_scale']
+model = dict(
+        type='EDSR',
+        in_channels=3,
+        out_channels=3,
+        mid_channels=64,
+        num_blocks=16,
+        upscale_factor=scale,
+        res_scale=1,
+        rgb_mean=[0.4488, 0.4371, 0.4040],
+        rgb_std=[1.0, 1.0, 1.0])
+model = mmcv.build_from_cfg(model, MODELS)
 
-model = ResNet(101, double_input=Img_Recon)
-model.init_weights()
+
+# model = ResNet(101, double_input=Img_Recon)
+# model.init_weights()
 # model = SRResNet()
 
-torchsummary.summary(model, input_size=input_size, batch_size=batch_size, device='cpu')
+torchsummary.summary(model, input_size=hyper_params['input_size'], batch_size=batch_size, device='cpu')
 
 # ===============================================================================
 # =                                    Setting                                  =
 # ===============================================================================
 
-loss_function_mse = nn.MSELoss()
+# loss_function_mse = nn.MSELoss()
 loss_function_L1 = nn.L1Loss()
-loss_function = {'loss_function_mse': loss_function_mse,
-                 'loss_function_L1': loss_function_L1}
+loss_function = loss_function_L1
+# loss_function = {'loss_function_mse': loss_function_mse,
+#                  'loss_function_L1': loss_function_L1}
 
 eval_function_psnr = torchmetrics.functional.image.psnr.peak_signal_noise_ratio
 eval_function_ssim = torchmetrics.functional.image.ssim.structural_similarity_index_measure
 eval_function = {'eval_function_psnr': eval_function_psnr,
                  'eval_function_ssim': eval_function_ssim}
 
-optimizer_ft     = optim.AdamW(model.parameters(), lr=lr)
+optimizer_ft     = optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999))
+
 exp_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer_ft, int(Epochs / 10))
 
 # ===============================================================================

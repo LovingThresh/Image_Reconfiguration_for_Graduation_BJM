@@ -42,3 +42,18 @@ def visualize_model(model: torch.nn.Module, image, image_pair=False):
         plt.show()
     else:
         plot(prediction)
+
+
+def visualize_pair(train_loader, input_size, crop_size):
+
+    a = next(iter(train_loader))
+
+    input_tensor = a[0][0:1].numpy()
+    input_tensor = input_tensor.transpose(0, 2, 3, 1)
+    input_tensor = input_tensor.reshape(input_size[0], input_size[1], 3)
+    plot(input_tensor)
+
+    input_tensor = a[1][0:1].numpy()
+    input_tensor = input_tensor.transpose(0, 2, 3, 1)
+    input_tensor = input_tensor.reshape(crop_size[0], crop_size[1], 3)
+    plot(input_tensor)
