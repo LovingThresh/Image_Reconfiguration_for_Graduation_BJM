@@ -424,14 +424,14 @@ def val_generator_epoch(train_model_G, train_model_D,
         real_input, real_output = real_input.to(Device), real_output.to(Device)
         b_size = real_output.size(0)
 
-        # Real Training
+        # Real
         real_label = torch.ones((b_size, label_size), dtype=torch.float, device=Device)
 
         real_predict = train_model_D(real_output)
         loss_D_O, training_loss_sum_D, training_loss_D = \
             calculate_loss(loss_fn_D, it, training_loss_sum_D, training_loss_D, real_predict, real_label)
 
-        # Fake Training
+        # Fake
         fake_label = torch.zeros((b_size, label_size), dtype=torch.float, device=Device)
         fake_predict = train_model_D(train_model_G(real_input))
         loss_D_T, training_loss_sum_D, training_loss_D = \
@@ -439,14 +439,13 @@ def val_generator_epoch(train_model_G, train_model_D,
         evaluation_D, training_eval_sum_D, training_evaluation_D = \
             calculate_eval(eval_fn_D, it, training_eval_sum_D, training_evaluation_D, fake_predict, fake_label)
 
-        # Generator Training
+        # Generator
         gen_predict = train_model_G(real_input)
         loss_G_, training_loss_sum_G, training_loss_G = \
             calculate_loss(loss_function_G_, it, training_loss_sum_G, training_loss_G, gen_predict, 1)
 
         loss_G, training_loss_sum_G, training_loss_G = \
             calculate_loss(loss_fn_G, it, training_loss_sum_G, training_loss_G, gen_predict, real_output)
-        loss_G = loss_G_ + loss_G
 
         evaluation_G, training_eval_sum_G, training_evaluation_G = \
             calculate_eval(eval_fn_G, it, training_eval_sum_G, training_evaluation_G, gen_predict, real_output)
@@ -621,7 +620,7 @@ def train_GAN(training_model_G, training_model_D,
                     "eval_fn": [eval_fn_D, eval_fn_G],
                     "lr_schedule_state_dict": [scheduler_D.state_dict(), scheduler_G.state_dict()],
                     "optimizer_state_dict": [optimizer_D.state_dict(), optimizer_G.state_dict()]
-                }, os.path.join(save_checkpoint_path, str(epoch), '.pth'))
+                }, os.path.join(save_checkpoint_path, str(epoch) + '.pth'))
 
     if not comet:
         train_process(comet, experiment)

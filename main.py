@@ -33,11 +33,11 @@ train_comet = False
 
 hyper_params = {
     "ex_number"     : 'EDSR_3080Ti',
-    "down_scale"    : 1,  # !! (2 ** down_scale)
+    "down_scale"    : 2,  # !! (2 ** down_scale)
     "raw_size"      : (3, 1024, 1024),
     "crop_size"     : (3, 128, 128),
-    "input_size"    : (3, 64, 64),
-    "batch_size"    : 8,
+    "input_size"    : (3, 32, 32),
+    "batch_size"    : 16,
     "learning_rate" : 1e-4,
     "epochs"        : 200,
     "threshold"     : 28,
@@ -84,32 +84,42 @@ visualize_pair(train_loader, input_size=input_size, crop_size=crop_size)
 # =                                     Model                                   =
 # ===============================================================================
 scale = 2 ** hyper_params['down_scale']
-model = dict(
-        type='EDSR',
-        in_channels=3,
-        out_channels=3,
-        mid_channels=64,
-        num_blocks=16,
-        upscale_factor=scale,
-        res_scale=1,
-        rgb_mean=[0.4488, 0.4371, 0.4040],
-        rgb_std=[1.0, 1.0, 1.0])
-model = mmcv.build_from_cfg(model, MODELS)
 
-generator = dict(
+model = dict(
+    type='ESRGAN',
+    generator=dict(
         type='RRDBNet',
         in_channels=3,
         out_channels=3,
         mid_channels=64,
         num_blocks=23,
         growth_channels=32,
-        upscale_factor=scale)
-generator = mmcv.build_from_cfg(generator, MODELS)
+        upscale_factor=scale),
+    discriminator=dict(type='ModifiedVGG', in_channels=3, mid_channels=64),
+    pixel_loss=dict(type='L1Loss', loss_weight=1e-2, reduction='mean'),
+    perceptual_loss=dict(
+        type='PerceptualLoss',
+        layer_weights={'34': 1.0},
+        vgg_type='vgg19',
+        perceptual_weight=1.0,
+        style_weight=0,
+        norm_img=False),
+    gan_loss=dict(
+        type='GANLoss',
+        gan_type='vanilla',
+        loss_weight=5e-3,
+        real_label_val=1.0,
+        fake_label_val=0),
+    pretrained=None,
+)
+model = mmcv.build_from_cfg(model, MODELS)
+checkpoint = torch.load('C:/Users/liuye/Downloads/esrgan_x4c64b23g32_1x16_400k_div2k_20200508-f8ccaf3b.pth')
+model.load_state_dict(checkpoint['state_dict'])
 
-discriminator = dict(type='ModifiedVGG', in_channels=3, mid_channels=64)
-discriminator = mmcv.build_from_cfg(discriminator, MODELS)
+generator = model.generator
+discriminator = model.discriminator
 
-pixel_loss = dict(type='L1Loss', loss_weight=1, reduction='mean')
+pixel_loss = dict(type='L1Loss', loss_weight=1e-2, reduction='mean')
 pixel_loss = mmcv.build_from_cfg(pixel_loss, LOSSES)
 
 perceptual_loss = dict(
@@ -124,7 +134,7 @@ perceptual_loss = mmcv.build_from_cfg(perceptual_loss, LOSSES)
 gan_loss = dict(
     type='GANLoss',
     gan_type='vanilla',
-    loss_weight=5e-1,
+    loss_weight=5e-3,
     real_label_val=1.0,
     fake_label_val=0)
 gan_loss = mmcv.build_from_cfg(gan_loss, LOSSES)
