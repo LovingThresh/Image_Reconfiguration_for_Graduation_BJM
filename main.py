@@ -37,7 +37,7 @@ hyper_params = {
     "raw_size"      : (3, 1024, 1024),
     "crop_size"     : (3, 128, 128),
     "input_size"    : (3, 32, 32),
-    "batch_size"    : 16,
+    "batch_size"    : 8,
     "learning_rate" : 1e-4,
     "epochs"        : 200,
     "threshold"     : 28,
@@ -118,6 +118,7 @@ model.load_state_dict(checkpoint['state_dict'])
 
 generator = model.generator
 discriminator = model.discriminator
+discriminator.init_weights()
 
 pixel_loss = dict(type='L1Loss', loss_weight=1e-2, reduction='mean')
 pixel_loss = mmcv.build_from_cfg(pixel_loss, LOSSES)
@@ -133,10 +134,10 @@ perceptual_loss = mmcv.build_from_cfg(perceptual_loss, LOSSES)
 
 gan_loss = dict(
     type='GANLoss',
-    gan_type='vanilla',
+    gan_type='wgan',
     loss_weight=5e-3,
     real_label_val=1.0,
-    fake_label_val=0)
+    fake_label_val=0.)
 gan_loss = mmcv.build_from_cfg(gan_loss, LOSSES)
 
 # model = ResNet(101, double_input=Img_Recon)
@@ -152,7 +153,7 @@ gan_loss = mmcv.build_from_cfg(gan_loss, LOSSES)
 # loss_function_mse = nn.MSELoss()
 # loss_function_L1 = nn.L1Loss()
 # loss_function = loss_function_L1
-loss_function_D = {'loss_function_BCE': nn.BCEWithLogitsLoss()}
+loss_function_D = {'loss_function_CE': nn.BCEWithLogitsLoss()}
 
 loss_function_G_ = {'loss_function_gan': gan_loss}
 loss_function_G = {'loss_function_perceptual': perceptual_loss,
@@ -162,15 +163,18 @@ eval_function_psnr = torchmetrics.functional.image.psnr.peak_signal_noise_ratio
 eval_function_ssim = torchmetrics.functional.image.ssim.structural_similarity_index_measure
 eval_function_mse = torchmetrics.functional.mean_squared_error
 
-eval_function_D = {'eval_function_psnr': eval_function_mse}
+eval_function_D = {'eval_function_mse': eval_function_mse}
 eval_function_G = {'eval_function_psnr': eval_function_psnr,
                    'eval_function_ssim': eval_function_ssim}
 
-optimizer_ft_D     = optim.AdamW(model.parameters(), lr=lr * 0.2, betas=(0.9, 0.999))
-optimizer_ft_G     = optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.999))
+optimizer_ft_D     = optim.AdamW(discriminator.parameters(), lr=lr, betas=(0.9, 0.999))
+optimizer_ft_G     = optim.AdamW(generator.parameters(), lr=lr, betas=(0.9, 0.999))
 
-exp_lr_scheduler_D = lr_scheduler.CosineAnnealingLR(optimizer_ft_D, int(Epochs / 10))
-exp_lr_scheduler_G = lr_scheduler.CosineAnnealingLR(optimizer_ft_G, int(Epochs / 10))
+# exp_lr_scheduler_D = lr_scheduler.CosineAnnealingLR(optimizer_ft_D, int(Epochs / 10))
+# exp_lr_scheduler_G = lr_scheduler.CosineAnnealingLR(optimizer_ft_G, int(Epochs / 10))
+
+exp_lr_scheduler_D = lr_scheduler.StepLR(optimizer_ft_D, step_size=30, gamma=0.)
+exp_lr_scheduler_G = lr_scheduler.StepLR(optimizer_ft_G, step_size=30, gamma=0.)
 
 # ===============================================================================
 # =                                  Copy & Upload                              =
