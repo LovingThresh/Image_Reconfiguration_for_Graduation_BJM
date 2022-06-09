@@ -6,11 +6,11 @@
 # @Software: PyCharm
 import mmcv
 import numpy as np
-import torchmetrics.functional
+# import torchmetrics.functional
 from mmedit.models import MODELS
 from mmedit.models import LOSSES
 
-import torchsummary
+# import torchsummary
 import torchmetrics
 import torch.optim as optim
 

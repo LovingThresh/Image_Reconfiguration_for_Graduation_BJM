@@ -5,7 +5,7 @@
 # @File    : visualize.py
 # @Software: PyCharm
 import cv2
-import numpy
+# import numpy
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
