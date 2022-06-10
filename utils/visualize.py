@@ -64,7 +64,7 @@ def visualize_pair(train_loader, input_size, crop_size, plot_switch=True):
     return input_tensor_numpy, output_tensor_numpy
 
 
-def visualize_save_pair(val_model: torch.nn.Module, train_loader, save_path, epoch):
+def visualize_save_pair(val_model: torch.nn.Module, train_loader, save_path, epoch, num=0):
 
     a = next(iter(train_loader))
 
@@ -78,13 +78,13 @@ def visualize_save_pair(val_model: torch.nn.Module, train_loader, save_path, epo
     input_tensor_numpy = input_tensor_numpy.transpose(0, 2, 3, 1)
     input_tensor_numpy = input_tensor_numpy.reshape(input_size[0], input_size[1], 3)
     input_tensor_numpy = cv2.cvtColor(input_tensor_numpy, cv2.COLOR_BGR2RGB)
-    cv2.imwrite('{}/{}_input.jpg'.format(save_path, epoch), np.uint8(input_tensor_numpy * 255))
+    cv2.imwrite('{}/{}_input.jpg'.format(save_path, epoch + num), np.uint8(input_tensor_numpy * 255))
 
     output_tensor_numpy = output_tensor.numpy()
     output_tensor_numpy = output_tensor_numpy.transpose(0, 2, 3, 1)
     output_tensor_numpy = output_tensor_numpy.reshape(crop_size[0], crop_size[1], 3)
     output_tensor_numpy = cv2.cvtColor(output_tensor_numpy, cv2.COLOR_BGR2RGB)
-    cv2.imwrite('{}/{}_output.jpg'.format(save_path, epoch), np.uint8(output_tensor_numpy * 255))
+    cv2.imwrite('{}/{}_output.jpg'.format(save_path, epoch + num), np.uint8(output_tensor_numpy * 255))
 
     val_model.eval()
     predict_tensor = val_model(input_tensor.cuda())
@@ -92,5 +92,25 @@ def visualize_save_pair(val_model: torch.nn.Module, train_loader, save_path, epo
     predict_tensor_numpy = predict_tensor_numpy.transpose(0, 2, 3, 1)
     predict_tensor_numpy = predict_tensor_numpy.reshape(crop_size[0], crop_size[1], 3)
     predict_tensor_numpy = cv2.cvtColor(predict_tensor_numpy, cv2.COLOR_BGR2RGB)
-    cv2.imwrite('{}/{}_predict.jpg'.format(save_path, epoch), np.uint8(predict_tensor_numpy * 255))
+    cv2.imwrite('{}/{}_predict.jpg'.format(save_path, epoch + num), np.uint8(predict_tensor_numpy * 255))
 
+
+def image2tensor(image_path):
+
+    image = cv2.imread(image_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = torch.tensor(image, dtype=torch.float32)
+    image = image.transpose(0, 2)
+    image = image.transpose(1, 2)
+
+    return image.unsqueeze(0)
+
+
+def tensor2array(tensor):
+
+    tensor = tensor.squeeze(0)
+    tensor = tensor.transpose(0, 2)
+    tensor = tensor.transpose(0, 1)
+    array = tensor.numpy()
+
+    return array

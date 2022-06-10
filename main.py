@@ -173,8 +173,8 @@ optimizer_ft_G     = optim.AdamW(generator.parameters(), lr=lr, betas=(0.9, 0.99
 # exp_lr_scheduler_D = lr_scheduler.CosineAnnealingLR(optimizer_ft_D, int(Epochs / 10))
 # exp_lr_scheduler_G = lr_scheduler.CosineAnnealingLR(optimizer_ft_G, int(Epochs / 10))
 
-exp_lr_scheduler_D = lr_scheduler.StepLR(optimizer_ft_D, step_size=30, gamma=0.)
-exp_lr_scheduler_G = lr_scheduler.StepLR(optimizer_ft_G, step_size=30, gamma=0.)
+exp_lr_scheduler_D = lr_scheduler.StepLR(optimizer_ft_D, step_size=30, gamma=0.8)
+exp_lr_scheduler_G = lr_scheduler.StepLR(optimizer_ft_G, step_size=30, gamma=0.8)
 
 # ===============================================================================
 # =                                  Copy & Upload                              =
