@@ -750,3 +750,4 @@ class CBAMBlock(nn.Module):
         out = x * self.ca(x)
         out = out * self.sa(out)
         return out + residual
+

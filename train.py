@@ -286,9 +286,9 @@ def train_generator_epoch(train_model_G, train_model_D,
         it = it + 1
         D_weight = 0.5
         optimizer_D.zero_grad()
-        real_input, real_output, real_mask = batch
-        real_input, real_output, real_mask = real_input.to(Device), real_output.to(Device), real_mask.to(Device)
-        real_input, real_output, real_mask = Variable(real_input), Variable(real_output), Variable(real_mask)
+        real_input, real_output = batch
+        real_input, real_output = real_input.to(Device), real_output.to(Device)
+        real_input, real_output = Variable(real_input), Variable(real_output)
 
         # --------------------------------------------------------------------------------------------------------------
         # Real Training
@@ -458,8 +458,8 @@ def val_generator_epoch(train_model_G, train_model_D,
         train_model_G.zero_grad()
         train_model_D.zero_grad()
 
-        real_input, real_output, real_mask = batch
-        real_input, real_output, real_mask = real_input.to(Device), real_output.to(Device), real_mask.to(Device)
+        real_input, real_output = batch
+        real_input, real_output = real_input.to(Device), real_output.to(Device)
 
         # Real
         real_predict = train_model_D(real_output)
